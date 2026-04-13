@@ -3,7 +3,7 @@ import { API_BASE_URL } from '../config/api';
 type RequestOptions = {
   body?: unknown;
   headers?: Record<string, string>;
-  method?: 'DELETE' | 'GET' | 'POST';
+  method?: 'DELETE' | 'GET' | 'PATCH' | 'POST';
 };
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {

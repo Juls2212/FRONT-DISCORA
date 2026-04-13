@@ -4,7 +4,10 @@ import {
   createPlaylist,
   deletePlaylist,
   getPlaylistById,
+  moveSongDownInPlaylist,
+  moveSongUpInPlaylist,
   removeSongFromPlaylist,
+  setCurrentSongInPlaylist,
 } from '../services/discoraApi';
 import { Playlist, PlaylistDetail, Song } from '../types';
 import { PlaylistCard } from './PlaylistCard';
@@ -39,6 +42,8 @@ export function PlaylistsView({
   const [addingSong, setAddingSong] = useState(false);
   const [deletingPlaylistId, setDeletingPlaylistId] = useState<Playlist['id'] | null>(null);
   const [removingNodeId, setRemovingNodeId] = useState<Playlist['id'] | null>(null);
+  const [movingNodeId, setMovingNodeId] = useState<Playlist['id'] | null>(null);
+  const [settingCurrentNodeId, setSettingCurrentNodeId] = useState<Playlist['id'] | null>(null);
 
   const availableSongs = songs.filter(
     (song) => !playlistDetail?.songs.some((entry) => entry.song.id === song.id),
@@ -127,8 +132,8 @@ export function PlaylistsView({
     setActionMessage(null);
 
     try {
-      await addSongToPlaylist(playlistDetail.id, { songId: selectedSongId });
-      await loadPlaylistDetail(playlistDetail.id);
+      const nextDetail = await addSongToPlaylist(playlistDetail.id, { songId: selectedSongId });
+      setPlaylistDetail(nextDetail);
       await onRefreshPlaylists();
       setSelectedSongId('');
       setActionMessage('Cancion agregada a la playlist.');
@@ -148,14 +153,74 @@ export function PlaylistsView({
     setActionMessage(null);
 
     try {
-      await removeSongFromPlaylist(playlistDetail.id, nodeId);
-      await loadPlaylistDetail(playlistDetail.id);
+      const nextDetail = await removeSongFromPlaylist(playlistDetail.id, nodeId);
+      setPlaylistDetail(nextDetail);
       await onRefreshPlaylists();
       setActionMessage('Cancion eliminada de la playlist.');
     } catch {
       setActionMessage('No se pudo quitar la cancion de la playlist.');
     } finally {
       setRemovingNodeId(null);
+    }
+  };
+
+  const handleMoveSongUp = async (nodeId: Playlist['id']) => {
+    if (!playlistDetail) {
+      return;
+    }
+
+    setMovingNodeId(nodeId);
+    setActionMessage(null);
+
+    try {
+      const nextDetail = await moveSongUpInPlaylist(playlistDetail.id, nodeId);
+      setPlaylistDetail(nextDetail);
+      await onRefreshPlaylists();
+      setActionMessage('Cancion movida hacia arriba.');
+    } catch {
+      setActionMessage('No se pudo mover la cancion hacia arriba.');
+    } finally {
+      setMovingNodeId(null);
+    }
+  };
+
+  const handleMoveSongDown = async (nodeId: Playlist['id']) => {
+    if (!playlistDetail) {
+      return;
+    }
+
+    setMovingNodeId(nodeId);
+    setActionMessage(null);
+
+    try {
+      const nextDetail = await moveSongDownInPlaylist(playlistDetail.id, nodeId);
+      setPlaylistDetail(nextDetail);
+      await onRefreshPlaylists();
+      setActionMessage('Cancion movida hacia abajo.');
+    } catch {
+      setActionMessage('No se pudo mover la cancion hacia abajo.');
+    } finally {
+      setMovingNodeId(null);
+    }
+  };
+
+  const handleSetCurrentSong = async (nodeId: Playlist['id']) => {
+    if (!playlistDetail) {
+      return;
+    }
+
+    setSettingCurrentNodeId(nodeId);
+    setActionMessage(null);
+
+    try {
+      const nextDetail = await setCurrentSongInPlaylist(playlistDetail.id, nodeId);
+      setPlaylistDetail(nextDetail);
+      await onRefreshPlaylists();
+      setActionMessage('Cancion actual actualizada.');
+    } catch {
+      setActionMessage('No se pudo marcar la cancion actual.');
+    } finally {
+      setSettingCurrentNodeId(null);
     }
   };
 
@@ -243,10 +308,7 @@ export function PlaylistsView({
             <div className="playlist-detail-toolbar">
               <label className="library-search playlist-song-select">
                 <span>Agregar cancion</span>
-                <select
-                  value={selectedSongId}
-                  onChange={(event) => setSelectedSongId(event.target.value)}
-                >
+                <select value={selectedSongId} onChange={(event) => setSelectedSongId(event.target.value)}>
                   <option value="">Selecciona una cancion de la biblioteca</option>
                   {availableSongs.map((song) => (
                     <option key={song.id} value={String(song.id)}>
@@ -277,19 +339,47 @@ export function PlaylistsView({
               />
             ) : (
               <div className="playlist-detail-list">
-                {playlistDetail.songs.map((entry) => (
-                  <article key={entry.nodeId} className="playlist-detail-row">
+                {playlistDetail.songs.map((entry, index) => (
+                  <article
+                    key={entry.nodeId}
+                    className={`playlist-detail-row${playlistDetail.currentNodeId === entry.nodeId ? ' playlist-detail-row-current' : ''}`}
+                  >
                     <button className="playlist-detail-meta" type="button" onClick={() => onSelectTrack(entry.song)}>
                       <div className="playlist-detail-cover" style={{ background: entry.song.cover }} />
                       <div>
                         <h3>{entry.song.title}</h3>
-                        <p>
-                          {entry.song.artist} · {entry.song.album}
-                        </p>
+                        <p>{entry.song.artist} · {entry.song.album}</p>
+                        {playlistDetail.currentNodeId === entry.nodeId ? (
+                          <span className="playlist-current-badge">Actual</span>
+                        ) : null}
                       </div>
                     </button>
                     <div className="playlist-detail-actions">
                       <span>{entry.song.duration}</span>
+                      <button
+                        className="library-secondary-button"
+                        type="button"
+                        onClick={() => handleMoveSongUp(entry.nodeId)}
+                        disabled={movingNodeId === entry.nodeId || index === 0}
+                      >
+                        {movingNodeId === entry.nodeId ? 'Moviendo...' : 'Subir'}
+                      </button>
+                      <button
+                        className="library-secondary-button"
+                        type="button"
+                        onClick={() => handleMoveSongDown(entry.nodeId)}
+                        disabled={movingNodeId === entry.nodeId || index === playlistDetail.songs.length - 1}
+                      >
+                        {movingNodeId === entry.nodeId ? 'Moviendo...' : 'Bajar'}
+                      </button>
+                      <button
+                        className="library-secondary-button"
+                        type="button"
+                        onClick={() => handleSetCurrentSong(entry.nodeId)}
+                        disabled={settingCurrentNodeId === entry.nodeId || playlistDetail.currentNodeId === entry.nodeId}
+                      >
+                        {settingCurrentNodeId === entry.nodeId ? 'Guardando...' : 'Marcar actual'}
+                      </button>
                       <button className="library-secondary-button" type="button" onClick={() => onSelectTrack(entry.song)}>
                         Escuchar
                       </button>

@@ -204,6 +204,39 @@ export async function removeSongFromPlaylist(
   return normalizePlaylistDetail(unwrapResponseData(response), 0);
 }
 
+export async function moveSongUpInPlaylist(
+  playlistId: EntityId,
+  nodeId: EntityId,
+): Promise<PlaylistDetail> {
+  const response = await request<unknown>(`/playlists/${playlistId}/songs/${nodeId}/move-up`, {
+    method: 'PATCH',
+  });
+
+  return normalizePlaylistDetail(unwrapResponseData(response), 0);
+}
+
+export async function moveSongDownInPlaylist(
+  playlistId: EntityId,
+  nodeId: EntityId,
+): Promise<PlaylistDetail> {
+  const response = await request<unknown>(`/playlists/${playlistId}/songs/${nodeId}/move-down`, {
+    method: 'PATCH',
+  });
+
+  return normalizePlaylistDetail(unwrapResponseData(response), 0);
+}
+
+export async function setCurrentSongInPlaylist(
+  playlistId: EntityId,
+  nodeId: EntityId,
+): Promise<PlaylistDetail> {
+  const response = await request<unknown>(`/playlists/${playlistId}/current/${nodeId}`, {
+    method: 'PATCH',
+  });
+
+  return normalizePlaylistDetail(unwrapResponseData(response), 0);
+}
+
 export async function deleteSong(songId: EntityId): Promise<void> {
   await request<void>(`/songs/${songId}`, {
     method: 'DELETE',

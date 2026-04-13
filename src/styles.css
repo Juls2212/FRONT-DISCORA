@@ -814,6 +814,11 @@ button {
   background: var(--card-bg);
 }
 
+.playlist-detail-row-current {
+  border-color: var(--border-strong);
+  background: linear-gradient(180deg, var(--panel-strong) 0%, var(--panel) 100%);
+}
+
 .playlist-detail-meta {
   display: flex;
   align-items: center;
@@ -842,10 +847,24 @@ button {
   color: var(--text-secondary);
 }
 
+.playlist-current-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary-button-text);
+  background: var(--primary-button-bg);
+}
+
 .playlist-detail-actions {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .recent-songs-list {
