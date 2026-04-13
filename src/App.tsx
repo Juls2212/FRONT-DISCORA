@@ -26,6 +26,35 @@ function App() {
   const [selectedTrack, setSelectedTrack] = useState<Song | null>(null);
   const [activeView, setActiveView] = useState<ViewName>('home');
 
+  const loadSongs = async () => {
+    setSongsLoading(true);
+    setSongsError(null);
+
+    try {
+      const nextSongs = await getSongs();
+      setSongs(nextSongs);
+      setSelectedTrack((currentTrack) => currentTrack ?? nextSongs[0] ?? null);
+    } catch {
+      setSongsError('No se pudieron cargar las canciones.');
+    } finally {
+      setSongsLoading(false);
+    }
+  };
+
+  const loadPlaylists = async () => {
+    setPlaylistsLoading(true);
+    setPlaylistsError(null);
+
+    try {
+      const nextPlaylists = await getPlaylists();
+      setPlaylists(nextPlaylists);
+    } catch {
+      setPlaylistsError('No se pudieron cargar las playlists.');
+    } finally {
+      setPlaylistsLoading(false);
+    }
+  };
+
   useEffect(() => {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
 
@@ -69,61 +98,8 @@ function App() {
   }, [selectedTrack]);
 
   useEffect(() => {
-    let active = true;
-
-    const loadSongs = async () => {
-      setSongsLoading(true);
-      setSongsError(null);
-
-      try {
-        const nextSongs = await getSongs();
-
-        if (!active) {
-          return;
-        }
-
-        setSongs(nextSongs);
-        setSelectedTrack((currentTrack) => currentTrack ?? nextSongs[0] ?? null);
-      } catch {
-        if (active) {
-          setSongsError('No se pudieron cargar las canciones.');
-        }
-      } finally {
-        if (active) {
-          setSongsLoading(false);
-        }
-      }
-    };
-
-    const loadPlaylists = async () => {
-      setPlaylistsLoading(true);
-      setPlaylistsError(null);
-
-      try {
-        const nextPlaylists = await getPlaylists();
-
-        if (!active) {
-          return;
-        }
-
-        setPlaylists(nextPlaylists);
-      } catch {
-        if (active) {
-          setPlaylistsError('No se pudieron cargar las playlists.');
-        }
-      } finally {
-        if (active) {
-          setPlaylistsLoading(false);
-        }
-      }
-    };
-
     void loadSongs();
     void loadPlaylists();
-
-    return () => {
-      active = false;
-    };
   }, []);
 
   useEffect(() => {
@@ -257,7 +233,9 @@ function App() {
               playlists={playlists}
               playlistsError={playlistsError}
               playlistsLoading={playlistsLoading}
+              songs={songs}
               onSelectTrack={setSelectedTrack}
+              onRefreshPlaylists={loadPlaylists}
             />
           ) : (
             <MainContent

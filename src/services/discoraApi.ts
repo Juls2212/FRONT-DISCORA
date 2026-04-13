@@ -168,6 +168,12 @@ export async function createPlaylist(payload: { description?: string; name: stri
   return normalizePlaylist(unwrapResponseData(response), 0);
 }
 
+export async function deletePlaylist(id: EntityId): Promise<void> {
+  await request<void>(`/playlists/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function getPlaylistById(id: EntityId): Promise<PlaylistDetail> {
   const response = await request<unknown>(`/playlists/${id}`);
   const payload = unwrapResponseData(response);
@@ -178,19 +184,24 @@ export async function getPlaylistById(id: EntityId): Promise<PlaylistDetail> {
 export async function addSongToPlaylist(
   playlistId: EntityId,
   payload: { songId: EntityId },
-): Promise<PlaylistSongNode> {
+): Promise<PlaylistDetail> {
   const response = await request<unknown>(`/playlists/${playlistId}/songs`, {
     body: payload,
     method: 'POST',
   });
 
-  return normalizePlaylistSongNode(unwrapResponseData(response));
+  return normalizePlaylistDetail(unwrapResponseData(response), 0);
 }
 
-export async function removeSongFromPlaylist(playlistId: EntityId, nodeId: EntityId): Promise<void> {
-  await request<void>(`/playlists/${playlistId}/songs/${nodeId}`, {
+export async function removeSongFromPlaylist(
+  playlistId: EntityId,
+  nodeId: EntityId,
+): Promise<PlaylistDetail> {
+  const response = await request<unknown>(`/playlists/${playlistId}/songs/${nodeId}`, {
     method: 'DELETE',
   });
+
+  return normalizePlaylistDetail(unwrapResponseData(response), 0);
 }
 
 export async function deleteSong(songId: EntityId): Promise<void> {
