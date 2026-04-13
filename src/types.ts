@@ -10,6 +10,7 @@ export type Song = {
 export type Playlist = {
   id: number;
   name: string;
-  description: string;
-  accent: string;
+  songCount: number;
+  artwork: string;
+  detail: string;
 };
