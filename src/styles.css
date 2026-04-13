@@ -644,6 +644,11 @@ button {
   padding: 18px;
 }
 
+.playlist-card-active {
+  border-color: var(--border-strong);
+  background: linear-gradient(180deg, var(--panel-strong) 0%, var(--panel) 100%);
+}
+
 .playlist-card:hover {
   border-color: var(--border-strong);
   background: linear-gradient(180deg, var(--panel-strong) 0%, var(--panel) 100%);
@@ -674,6 +679,70 @@ button {
 
 .playlist-card-copy span {
   color: var(--accent);
+}
+
+.playlist-card-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  justify-self: start;
+  color: var(--secondary-button-text);
+  background: var(--secondary-button-bg);
+  border: 1px solid var(--secondary-button-border);
+}
+
+.playlists-hero {
+  min-height: 280px;
+}
+
+.playlist-detail-list {
+  display: grid;
+  gap: 12px;
+}
+
+.playlist-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-radius: 24px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.playlist-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+}
+
+.playlist-detail-cover {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  flex-shrink: 0;
+  border: 1px solid var(--art-border);
+}
+
+.playlist-detail-meta h3,
+.playlist-detail-meta p {
+  margin: 0;
+}
+
+.playlist-detail-meta p {
+  margin-top: 5px;
+  color: var(--text-secondary);
+}
+
+.playlist-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .recent-songs-list {
@@ -842,7 +911,8 @@ button {
 }
 
 :root[data-theme='light'] .playlist-card,
-:root[data-theme='light'] .recent-song-item {
+:root[data-theme='light'] .recent-song-item,
+:root[data-theme='light'] .playlist-detail-row {
   background: #ffffff;
 }
 
@@ -900,13 +970,15 @@ button {
   }
 
   .library-actions,
-  .library-song-row {
+  .library-song-row,
+  .playlist-detail-row {
     grid-template-columns: 1fr;
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .library-song-actions {
+  .library-song-actions,
+  .playlist-detail-actions {
     width: 100%;
     flex-wrap: wrap;
   }

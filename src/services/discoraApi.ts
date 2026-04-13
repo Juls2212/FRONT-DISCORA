@@ -1,4 +1,4 @@
-import { Playlist, PlaylistSongNode, Song } from '../types';
+import { Playlist, PlaylistDetail, PlaylistSongEntry, PlaylistSongNode, Song } from '../types';
 import { request } from './http';
 
 type UnknownRecord = Record<string, unknown>;
@@ -103,6 +103,29 @@ function normalizePlaylist(item: unknown, index: number): Playlist {
   };
 }
 
+function normalizePlaylistSongEntry(item: unknown, index: number): PlaylistSongEntry {
+  const record = asRecord(item);
+
+  return {
+    nextNodeId: (record.nextNodeId as number | string | null | undefined) ?? null,
+    nodeId: asId(record.nodeId ?? record.id, index + 1),
+    prevNodeId: (record.prevNodeId as number | string | null | undefined) ?? null,
+    song: normalizeSong(record.song ?? item, index),
+  };
+}
+
+function normalizePlaylistDetail(item: unknown, index: number): PlaylistDetail {
+  const record = asRecord(item);
+  const playlist = normalizePlaylist(item, index);
+  const songs = asArray<unknown>(record.songs).map(normalizePlaylistSongEntry);
+
+  return {
+    ...playlist,
+    currentNodeId: (record.currentNodeId as number | string | null | undefined) ?? null,
+    songs,
+  };
+}
+
 function normalizePlaylistSongNode(item: unknown): PlaylistSongNode {
   const record = asRecord(item);
 
@@ -143,9 +166,11 @@ export async function createPlaylist(payload: { description?: string; name: stri
   return normalizePlaylist(unwrapResponseData(response), 0);
 }
 
-export async function getPlaylistById(id: EntityId): Promise<Playlist> {
+export async function getPlaylistById(id: EntityId): Promise<PlaylistDetail> {
   const response = await request<unknown>(`/playlists/${id}`);
-  return normalizePlaylist(unwrapResponseData(response), 0);
+  const payload = unwrapResponseData(response);
+  console.debug('Discora /playlists/:id payload', response, payload);
+  return normalizePlaylistDetail(payload, 0);
 }
 
 export async function addSongToPlaylist(

@@ -1,12 +1,14 @@
 import { Playlist } from '../types';
 
 type PlaylistCardProps = {
+  isActive?: boolean;
+  onClick?: () => void;
   playlist: Playlist;
 };
 
-export function PlaylistCard({ playlist }: PlaylistCardProps) {
+export function PlaylistCard({ isActive = false, onClick, playlist }: PlaylistCardProps) {
   return (
-    <article className="playlist-card">
+    <article className={`playlist-card ${isActive ? 'playlist-card-active' : ''}`}>
       <div className="playlist-artwork" style={{ background: playlist.artwork }}>
         <div className="playlist-ring" />
       </div>
@@ -15,6 +17,11 @@ export function PlaylistCard({ playlist }: PlaylistCardProps) {
         <p>{playlist.detail}</p>
         <span>{playlist.songCount} canciones</span>
       </div>
+      {onClick ? (
+        <button className="playlist-card-button" type="button" onClick={onClick}>
+          Ver playlist
+        </button>
+      ) : null}
     </article>
   );
 }

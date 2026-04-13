@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { LibraryView } from './components/LibraryView';
 import { MainContent } from './components/MainContent';
 import { MiniPlayer } from './components/MiniPlayer';
+import { PlaylistsView } from './components/PlaylistsView';
 import { Sidebar } from './components/Sidebar';
 import { getPlaylists, getSongs } from './services/discoraApi';
 import { Playlist, Song } from './types';
@@ -139,6 +140,13 @@ function App() {
         <div className="content-shell">
           {activeView === 'library' ? (
             <LibraryView onSelectTrack={setSelectedTrack} onSongsReload={handleSongsReload} />
+          ) : activeView === 'playlists' ? (
+            <PlaylistsView
+              playlists={playlists}
+              playlistsError={playlistsError}
+              playlistsLoading={playlistsLoading}
+              onSelectTrack={setSelectedTrack}
+            />
           ) : (
             <MainContent
               playlists={playlists}

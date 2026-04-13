@@ -19,3 +19,15 @@ export type PlaylistSongNode = {
   nodeId: number | string;
   songId: number | string;
 };
+
+export type PlaylistSongEntry = {
+  nextNodeId: number | string | null;
+  nodeId: number | string;
+  prevNodeId: number | string | null;
+  song: Song;
+};
+
+export type PlaylistDetail = Playlist & {
+  currentNodeId: number | string | null;
+  songs: PlaylistSongEntry[];
+};
