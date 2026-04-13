@@ -15,7 +15,7 @@ export function LibraryView({ onSelectTrack, onSongsReload }: LibraryViewProps) 
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<Song['id'] | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadSongs = async () => {
@@ -62,7 +62,7 @@ export function LibraryView({ onSelectTrack, onSongsReload }: LibraryViewProps) 
     }
   };
 
-  const handleDeleteSong = async (songId: number) => {
+  const handleDeleteSong = async (songId: Song['id']) => {
     setDeletingId(songId);
     setError(null);
 

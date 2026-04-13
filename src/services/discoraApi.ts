@@ -2,6 +2,7 @@ import { Playlist, PlaylistSongNode, Song } from '../types';
 import { request } from './http';
 
 type UnknownRecord = Record<string, unknown>;
+type EntityId = number | string;
 
 const playlistArtwork = [
   'linear-gradient(145deg, #5c6b8a 0%, #1d2333 52%, #0a0f18 100%)',
@@ -29,8 +30,51 @@ function asNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' ? value : fallback;
 }
 
+function asId(value: unknown, fallback: EntityId): EntityId {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  return fallback;
+}
+
 function asString(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim().length > 0 ? value : fallback;
+}
+
+function formatDuration(value: unknown): string {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const totalSeconds = Math.max(0, Math.floor(value));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  return '--:--';
+}
+
+function unwrapResponseData(response: unknown, collectionKey?: 'playlists' | 'songs'): unknown {
+  const root = asRecord(response);
+  const data = 'data' in root ? root.data : response;
+  const dataRecord = asRecord(data);
+
+  if (collectionKey && Array.isArray(dataRecord[collectionKey])) {
+    return dataRecord[collectionKey];
+  }
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  return data;
 }
 
 function normalizeSong(item: unknown, index: number): Song {
@@ -39,9 +83,9 @@ function normalizeSong(item: unknown, index: number): Song {
   return {
     album: asString(record.album ?? record.playlist, 'Sin album'),
     artist: asString(record.artist ?? record.author, 'Artista sin nombre'),
-    cover: songArtwork[index % songArtwork.length],
-    duration: asString(record.duration ?? record.length, '--:--'),
-    id: asNumber(record.id, index + 1),
+    cover: asString(record.coverUrl, songArtwork[index % songArtwork.length]),
+    duration: formatDuration(record.duration ?? record.length),
+    id: asId(record.id, index + 1),
     title: asString(record.title ?? record.name, `Cancion ${index + 1}`),
   };
 }
@@ -53,9 +97,9 @@ function normalizePlaylist(item: unknown, index: number): Playlist {
   return {
     artwork: playlistArtwork[index % playlistArtwork.length],
     detail: asString(record.description, 'Seleccion creada desde la coleccion de Discora.'),
-    id: asNumber(record.id, index + 1),
+    id: asId(record.id, index + 1),
     name: asString(record.name ?? record.title, `Playlist ${index + 1}`),
-    songCount: asNumber(record.songCount ?? songs.length, songs.length),
+    songCount: asNumber(record.songCount ?? record.size ?? songs.length, songs.length),
   };
 }
 
@@ -63,25 +107,31 @@ function normalizePlaylistSongNode(item: unknown): PlaylistSongNode {
   const record = asRecord(item);
 
   return {
-    nodeId: asNumber(record.nodeId ?? record.id, 0),
-    songId: asNumber(record.songId ?? record.song_id, 0),
+    nodeId: asId(record.nodeId ?? record.id, 0),
+    songId: asId(record.songId ?? record.song_id, 0),
   };
 }
 
 export async function getSongs(): Promise<Song[]> {
   const response = await request<unknown>('/songs');
-  return asArray<unknown>(response).map(normalizeSong);
+  const payload = unwrapResponseData(response, 'songs');
+  console.debug('Discora /songs payload', response, payload);
+  return asArray<unknown>(payload).map(normalizeSong);
 }
 
 export async function searchSongs(query: string): Promise<Song[]> {
   const params = new URLSearchParams({ q: query });
   const response = await request<unknown>(`/songs/search?${params.toString()}`);
-  return asArray<unknown>(response).map(normalizeSong);
+  const payload = unwrapResponseData(response, 'songs');
+  console.debug('Discora /songs/search payload', response, payload);
+  return asArray<unknown>(payload).map(normalizeSong);
 }
 
 export async function getPlaylists(): Promise<Playlist[]> {
   const response = await request<unknown>('/playlists');
-  return asArray<unknown>(response).map(normalizePlaylist);
+  const payload = unwrapResponseData(response, 'playlists');
+  console.debug('Discora /playlists payload', response, payload);
+  return asArray<unknown>(payload).map(normalizePlaylist);
 }
 
 export async function createPlaylist(payload: { description?: string; name: string }): Promise<Playlist> {
@@ -90,33 +140,33 @@ export async function createPlaylist(payload: { description?: string; name: stri
     method: 'POST',
   });
 
-  return normalizePlaylist(response, 0);
+  return normalizePlaylist(unwrapResponseData(response), 0);
 }
 
-export async function getPlaylistById(id: number): Promise<Playlist> {
+export async function getPlaylistById(id: EntityId): Promise<Playlist> {
   const response = await request<unknown>(`/playlists/${id}`);
-  return normalizePlaylist(response, 0);
+  return normalizePlaylist(unwrapResponseData(response), 0);
 }
 
 export async function addSongToPlaylist(
-  playlistId: number,
-  payload: { songId: number },
+  playlistId: EntityId,
+  payload: { songId: EntityId },
 ): Promise<PlaylistSongNode> {
   const response = await request<unknown>(`/playlists/${playlistId}/songs`, {
     body: payload,
     method: 'POST',
   });
 
-  return normalizePlaylistSongNode(response);
+  return normalizePlaylistSongNode(unwrapResponseData(response));
 }
 
-export async function removeSongFromPlaylist(playlistId: number, nodeId: number): Promise<void> {
+export async function removeSongFromPlaylist(playlistId: EntityId, nodeId: EntityId): Promise<void> {
   await request<void>(`/playlists/${playlistId}/songs/${nodeId}`, {
     method: 'DELETE',
   });
 }
 
-export async function deleteSong(songId: number): Promise<void> {
+export async function deleteSong(songId: EntityId): Promise<void> {
   await request<void>(`/songs/${songId}`, {
     method: 'DELETE',
   });

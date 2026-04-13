@@ -1,5 +1,5 @@
 export type Song = {
-  id: number;
+  id: number | string;
   title: string;
   artist: string;
   album: string;
@@ -8,7 +8,7 @@ export type Song = {
 };
 
 export type Playlist = {
-  id: number;
+  id: number | string;
   name: string;
   songCount: number;
   artwork: string;
@@ -16,6 +16,6 @@ export type Playlist = {
 };
 
 export type PlaylistSongNode = {
-  nodeId: number;
-  songId: number;
+  nodeId: number | string;
+  songId: number | string;
 };
