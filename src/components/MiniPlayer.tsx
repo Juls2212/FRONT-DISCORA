@@ -1,9 +1,13 @@
 import { PlaybackContext, Song } from '../types';
 
 type MiniPlayerProps = {
+  canGoNext: boolean;
+  canGoPrevious: boolean;
   currentTime: number;
   isPlaying: boolean;
+  onNext: () => void;
   onOpenFullPlayer: () => void;
+  onPrevious: () => void;
   onSeek: (time: number) => void;
   onTogglePlayback: () => void;
   playbackContext: PlaybackContext | null;
@@ -24,9 +28,13 @@ function formatPlaybackTime(value: number): string {
 }
 
 export function MiniPlayer({
+  canGoNext,
+  canGoPrevious,
   currentTime,
   isPlaying,
+  onNext,
   onOpenFullPlayer,
+  onPrevious,
   onSeek,
   onTogglePlayback,
   playbackContext,
@@ -63,13 +71,13 @@ export function MiniPlayer({
 
       <div className="mini-player-center">
         <div className="mini-player-controls">
-          <button className="player-secondary-button" type="button" aria-label="Anterior">
+          <button className="player-secondary-button" type="button" aria-label="Anterior" onClick={onPrevious} disabled={!canGoPrevious}>
             {'<'}
           </button>
           <button type="button" onClick={onTogglePlayback} disabled={!selectedTrack}>
             {isPlaying ? 'Pausar' : 'Reproducir'}
           </button>
-          <button className="player-secondary-button" type="button" aria-label="Siguiente">
+          <button className="player-secondary-button" type="button" aria-label="Siguiente" onClick={onNext} disabled={!canGoNext}>
             {'>'}
           </button>
         </div>

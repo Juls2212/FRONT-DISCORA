@@ -20,7 +20,7 @@ type PlaylistsViewProps = {
   playlistsLoading: boolean;
   songs: Song[];
   onRefreshPlaylists: () => Promise<void>;
-  onPlayTrack: (song: Song, context: PlaybackContext) => void;
+  onPlayTrack: (song: Song, context: PlaybackContext, queue?: Song[]) => void;
 };
 
 export function PlaylistsView({
@@ -363,7 +363,11 @@ export function PlaylistsView({
                         const context = getPlaylistPlaybackContext();
 
                         if (context) {
-                          onPlayTrack(entry.song, context);
+                          onPlayTrack(
+                            entry.song,
+                            context,
+                            playlistDetail.songs.map((playlistSong) => playlistSong.song),
+                          );
                         }
                       }}
                     >
@@ -409,7 +413,11 @@ export function PlaylistsView({
                           const context = getPlaylistPlaybackContext();
 
                           if (context) {
-                            onPlayTrack(entry.song, context);
+                            onPlayTrack(
+                              entry.song,
+                              context,
+                              playlistDetail.songs.map((playlistSong) => playlistSong.song),
+                            );
                           }
                         }}
                       >

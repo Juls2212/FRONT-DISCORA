@@ -6,7 +6,7 @@ import { SectionContainer } from './SectionContainer';
 import { StateMessage } from './StateMessage';
 
 type LibraryViewProps = {
-  onPlayTrack: (song: Song, context: PlaybackContext) => void;
+  onPlayTrack: (song: Song, context: PlaybackContext, queue?: Song[]) => void;
   onSongsReload: (songs: Song[]) => void;
 };
 
@@ -235,7 +235,11 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
           <div className="library-song-list">
             {songs.map((song) => (
               <article key={song.id} className="library-song-row">
-                <button className="library-song-meta" type="button" onClick={() => onPlayTrack(song, { type: 'library' })}>
+                <button
+                  className="library-song-meta"
+                  type="button"
+                  onClick={() => onPlayTrack(song, { type: 'library' }, songs)}
+                >
                   <div className="library-song-cover" style={{ background: song.cover }} />
                   <div>
                     <h3>{song.title}</h3>
@@ -246,7 +250,11 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
                 </button>
                 <div className="library-song-actions">
                   <span>{song.duration}</span>
-                  <button className="library-secondary-button" type="button" onClick={() => onPlayTrack(song, { type: 'library' })}>
+                  <button
+                    className="library-secondary-button"
+                    type="button"
+                    onClick={() => onPlayTrack(song, { type: 'library' }, songs)}
+                  >
                     Reproducir
                   </button>
                   <button

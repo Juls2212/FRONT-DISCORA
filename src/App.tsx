@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FullPlayer } from './components/FullPlayer';
 import { LibraryView } from './components/LibraryView';
 import { MainContent } from './components/MainContent';
 import { MiniPlayer } from './components/MiniPlayer';
@@ -28,6 +29,19 @@ function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackDuration, setPlaybackDuration] = useState(0);
   const [playbackContext, setPlaybackContext] = useState<PlaybackContext | null>(null);
+  const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);
+  const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
+
+  const currentTrackIndex = useMemo(() => {
+    if (!selectedTrack) {
+      return -1;
+    }
+
+    return playbackQueue.findIndex((song) => song.id === selectedTrack.id);
+  }, [playbackQueue, selectedTrack]);
+
+  const canGoPrevious = currentTrackIndex > 0;
+  const canGoNext = currentTrackIndex >= 0 && currentTrackIndex < playbackQueue.length - 1;
 
   const loadSongs = async () => {
     setSongsLoading(true);
@@ -38,6 +52,7 @@ function App() {
       setSongs(nextSongs);
       setSelectedTrack((currentTrack) => currentTrack ?? nextSongs[0] ?? null);
       setPlaybackContext((currentContext) => currentContext ?? (nextSongs[0] ? { type: 'library' } : null));
+      setPlaybackQueue((currentQueue) => currentQueue.length ? currentQueue : nextSongs);
     } catch {
       setSongsError('No se pudieron cargar las canciones.');
     } finally {
@@ -80,6 +95,13 @@ function App() {
     audioRef.current = audio;
 
     const handleEnded = () => {
+      if (currentTrackIndex >= 0 && currentTrackIndex < playbackQueue.length - 1) {
+        setSelectedTrack(playbackQueue[currentTrackIndex + 1]);
+        setCurrentTime(0);
+        setIsPlaying(true);
+        return;
+      }
+
       setIsPlaying(false);
       setCurrentTime(0);
     };
@@ -126,7 +148,7 @@ function App() {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('durationchange', handleLoadedMetadata);
     };
-  }, [selectedTrack]);
+  }, [currentTrackIndex, playbackQueue, selectedTrack]);
 
   useEffect(() => {
     void loadSongs();
@@ -167,6 +189,14 @@ function App() {
 
       setSongs((currentSongs) =>
         currentSongs.map((song) =>
+          resolvedDurations.has(song.id)
+            ? { ...song, duration: resolvedDurations.get(song.id) ?? song.duration }
+            : song,
+        ),
+      );
+
+      setPlaybackQueue((currentQueue) =>
+        currentQueue.map((song) =>
           resolvedDurations.has(song.id)
             ? { ...song, duration: resolvedDurations.get(song.id) ?? song.duration }
             : song,
@@ -261,11 +291,16 @@ function App() {
 
       return nextSongs[0];
     });
+
+    setPlaybackQueue((currentQueue) =>
+      currentQueue.length && playbackContext?.type === 'playlist' ? currentQueue : nextSongs,
+    );
   };
 
-  const handlePlayTrack = (song: Song, context: PlaybackContext) => {
+  const handlePlayTrack = (song: Song, context: PlaybackContext, queue?: Song[]) => {
     setSelectedTrack(song);
     setPlaybackContext(context);
+    setPlaybackQueue(queue?.length ? queue : [song]);
     setCurrentTime(0);
     setIsPlaying(true);
   };
@@ -279,6 +314,26 @@ function App() {
 
     audio.currentTime = nextTime;
     setCurrentTime(nextTime);
+  };
+
+  const handlePreviousTrack = () => {
+    if (!canGoPrevious) {
+      return;
+    }
+
+    setSelectedTrack(playbackQueue[currentTrackIndex - 1] ?? null);
+    setCurrentTime(0);
+    setIsPlaying(true);
+  };
+
+  const handleNextTrack = () => {
+    if (!canGoNext) {
+      return;
+    }
+
+    setSelectedTrack(playbackQueue[currentTrackIndex + 1] ?? null);
+    setCurrentTime(0);
+    setIsPlaying(true);
   };
 
   return (
@@ -318,9 +373,28 @@ function App() {
         </div>
       </div>
       <MiniPlayer
+        canGoNext={canGoNext}
+        canGoPrevious={canGoPrevious}
         currentTime={currentTime}
         isPlaying={isPlaying}
-        onOpenFullPlayer={() => console.debug('Discora full player placeholder', { playbackContext, selectedTrack })}
+        onNext={handleNextTrack}
+        onOpenFullPlayer={() => setIsFullPlayerOpen(true)}
+        onPrevious={handlePreviousTrack}
+        onSeek={handleSeek}
+        onTogglePlayback={handleTogglePlayback}
+        playbackContext={playbackContext}
+        playbackDuration={playbackDuration}
+        selectedTrack={selectedTrack}
+      />
+      <FullPlayer
+        canGoNext={canGoNext}
+        canGoPrevious={canGoPrevious}
+        currentTime={currentTime}
+        isOpen={isFullPlayerOpen}
+        isPlaying={isPlaying}
+        onClose={() => setIsFullPlayerOpen(false)}
+        onNext={handleNextTrack}
+        onPrevious={handlePreviousTrack}
         onSeek={handleSeek}
         onTogglePlayback={handleTogglePlayback}
         playbackContext={playbackContext}
