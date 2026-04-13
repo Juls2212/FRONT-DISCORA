@@ -1,0 +1,395 @@
+:root {
+  font-family: "Segoe UI", sans-serif;
+  color: #f8f9fa;
+  background:
+    radial-gradient(circle at top, rgba(64, 145, 108, 0.35), transparent 30%),
+    linear-gradient(180deg, #111315 0%, #08090a 100%);
+  color-scheme: dark;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --background-panel: rgba(255, 255, 255, 0.05);
+  --background-panel-strong: rgba(255, 255, 255, 0.08);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --muted-text: #aeb4ba;
+  --accent: #67d58c;
+  --accent-strong: #3cb46a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 20px 20px 110px;
+}
+
+.app-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 20px;
+}
+
+.sidebar,
+.hero-card,
+.playlist-card,
+.song-row,
+.vinyl-panel,
+.mini-player {
+  backdrop-filter: blur(18px);
+  background: var(--background-panel);
+  border: 1px solid var(--border-color);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 28px;
+  padding: 28px 22px;
+  min-height: calc(100vh - 150px);
+}
+
+.brand {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 32px;
+}
+
+.sidebar-nav,
+.sidebar-collection {
+  display: grid;
+  gap: 10px;
+}
+
+.sidebar-label,
+.eyebrow,
+.section-header span,
+.song-actions span {
+  color: var(--muted-text);
+  font-size: 0.85rem;
+}
+
+.nav-button,
+.collection-button {
+  border: 0;
+  background: transparent;
+  color: #f8f9fa;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: background-color 180ms ease, transform 180ms ease;
+}
+
+.nav-button:hover,
+.collection-button:hover,
+.song-actions button:hover,
+.hero-button:hover,
+.mini-player-controls button:hover {
+  transform: translateY(-1px);
+}
+
+.nav-button:hover,
+.collection-button:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.content-shell {
+  display: grid;
+  gap: 20px;
+}
+
+.main-content {
+  display: grid;
+  gap: 24px;
+}
+
+.hero-card {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 32px;
+  border-radius: 32px;
+  background:
+    linear-gradient(135deg, rgba(103, 213, 140, 0.14), rgba(255, 255, 255, 0.02)),
+    var(--background-panel);
+}
+
+.hero-card h1 {
+  font-size: clamp(2rem, 3vw, 3.2rem);
+  line-height: 1;
+  margin: 10px 0 16px;
+  max-width: 10ch;
+}
+
+.hero-copy {
+  color: var(--muted-text);
+  max-width: 52ch;
+  margin: 0;
+}
+
+.hero-button,
+.song-actions button,
+.mini-player-controls button {
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 180ms ease, background-color 180ms ease, opacity 180ms ease;
+}
+
+.hero-button,
+.mini-player-controls button {
+  background: var(--accent);
+  color: #081c15;
+  font-weight: 700;
+}
+
+.hero-button {
+  padding: 14px 22px;
+  min-width: 170px;
+}
+
+.content-section {
+  display: grid;
+  gap: 18px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.section-header h2,
+.playlist-card h3,
+.song-meta h3,
+.mini-player-track h3,
+.vinyl-copy h2 {
+  margin: 0;
+}
+
+.playlist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 18px;
+}
+
+.playlist-card {
+  border-radius: 24px;
+  padding: 18px;
+}
+
+.playlist-cover {
+  aspect-ratio: 1;
+  border-radius: 18px;
+  margin-bottom: 16px;
+}
+
+.playlist-card p,
+.song-meta p,
+.mini-player-track p,
+.vinyl-copy p {
+  color: var(--muted-text);
+  margin: 6px 0 0;
+}
+
+.song-list {
+  display: grid;
+  gap: 12px;
+}
+
+.song-row {
+  border-radius: 22px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.song-row-active {
+  background: var(--background-panel-strong);
+  border-color: rgba(103, 213, 140, 0.3);
+}
+
+.song-meta,
+.song-actions,
+.mini-player,
+.mini-player-track,
+.mini-player-controls {
+  display: flex;
+  align-items: center;
+}
+
+.song-meta,
+.mini-player-track {
+  gap: 14px;
+}
+
+.song-cover,
+.mini-player-cover {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  flex-shrink: 0;
+}
+
+.song-actions {
+  gap: 18px;
+}
+
+.song-actions button {
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8f9fa;
+}
+
+.vinyl-panel {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 24px;
+  border-radius: 32px;
+  padding: 24px;
+}
+
+.vinyl-cover {
+  aspect-ratio: 1;
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+}
+
+.vinyl-record {
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #2d2d2d 0 16%, transparent 16%),
+    repeating-radial-gradient(circle, #111 0 5px, #1d1d1d 5px 10px);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  position: relative;
+}
+
+.vinyl-record-spinning {
+  animation: spin 5s linear infinite;
+}
+
+.vinyl-center {
+  position: absolute;
+  inset: 50%;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  margin-top: -9px;
+  border-radius: 50%;
+  background: #d9d9d9;
+}
+
+.vinyl-copy {
+  align-self: center;
+}
+
+.mini-player {
+  position: fixed;
+  left: 20px;
+  right: 20px;
+  bottom: 20px;
+  justify-content: space-between;
+  gap: 20px;
+  border-radius: 26px;
+  padding: 16px 20px;
+}
+
+.mini-player-controls button {
+  padding: 12px 22px;
+}
+
+.mini-player-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 980px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    min-height: auto;
+  }
+
+  .vinyl-panel,
+  .hero-card,
+  .song-row,
+  .mini-player {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .song-row,
+  .mini-player {
+    justify-content: flex-start;
+  }
+
+  .song-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 14px 14px 126px;
+  }
+
+  .sidebar,
+  .hero-card,
+  .playlist-card,
+  .song-row,
+  .vinyl-panel,
+  .mini-player {
+    border-radius: 22px;
+  }
+
+  .hero-card,
+  .vinyl-panel {
+    padding: 22px;
+  }
+
+  .mini-player {
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
+  }
+}
