@@ -309,15 +309,19 @@ button {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
-  align-items: end;
+  align-items: stretch;
 }
 
 .library-search {
   display: grid;
   gap: 10px;
   color: var(--text-secondary);
+}
+
+.library-search-wide {
+  max-width: 620px;
 }
 
 .library-search input {
@@ -333,6 +337,57 @@ button {
 
 .library-file-input {
   display: none;
+}
+
+.library-import-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.library-import-status {
+  display: grid;
+  gap: 6px;
+}
+
+.library-import-label {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.library-import-status h3,
+.library-import-status p {
+  margin: 0;
+}
+
+.library-import-status p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.library-import-status-uploading h3 {
+  color: var(--text-primary);
+}
+
+.library-import-status-success h3 {
+  color: #c7ebd4;
+}
+
+.library-import-status-error h3 {
+  color: #f0b7bd;
+}
+
+.library-import-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .library-primary-button,
@@ -362,6 +417,14 @@ button {
   color: #f4d6d6;
   background: rgba(148, 52, 64, 0.22);
   border: 1px solid rgba(226, 116, 131, 0.18);
+}
+
+.library-primary-button:disabled,
+.library-secondary-button:disabled,
+.library-danger-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .library-song-list {
@@ -949,6 +1012,18 @@ button {
   color: #7b2230;
   background: #f9e7ea;
   border-color: rgba(123, 34, 48, 0.12);
+}
+
+:root[data-theme='light'] .library-import-panel {
+  background: #ffffff;
+}
+
+:root[data-theme='light'] .library-import-status-success h3 {
+  color: #1c6b45;
+}
+
+:root[data-theme='light'] .library-import-status-error h3 {
+  color: #9b2c3f;
 }
 
 @media (max-width: 1100px) {

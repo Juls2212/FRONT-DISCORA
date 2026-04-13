@@ -9,12 +9,16 @@ type LibraryViewProps = {
   onSongsReload: (songs: Song[]) => void;
 };
 
+type UploadStatus = 'error' | 'idle' | 'success' | 'uploading';
+
 export function LibraryView({ onSelectTrack, onSongsReload }: LibraryViewProps) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
+  const [uploadMessage, setUploadMessage] = useState('Selecciona un archivo MP3 para importarlo a tu biblioteca.');
   const [deletingId, setDeletingId] = useState<Song['id'] | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -41,24 +45,46 @@ export function LibraryView({ onSelectTrack, onSongsReload }: LibraryViewProps) 
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
     if (!file) {
       return;
     }
 
-    setUploading(true);
-    setError(null);
+    setSelectedFile(file);
+    setUploadStatus('idle');
+    setUploadMessage(`Archivo listo para importar: ${file.name}`);
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!selectedFile) {
+      setUploadStatus('idle');
+      setUploadMessage('Selecciona un archivo MP3 para importarlo a tu biblioteca.');
+      return;
+    }
+
+    setUploadStatus('uploading');
+    setUploadMessage(`Importando ${selectedFile.name}...`);
 
     try {
-      await uploadSong(file);
+      await uploadSong(selectedFile);
       await loadSongs();
+      setUploadStatus('success');
+      setUploadMessage(`Importacion completada: ${selectedFile.name}`);
+      setSelectedFile(null);
     } catch {
-      setError('No se pudo subir el archivo seleccionado.');
-    } finally {
-      setUploading(false);
-      event.target.value = '';
+      setUploadStatus('error');
+      setUploadMessage('No se pudo importar el archivo seleccionado.');
+    }
+  };
+
+  const handleClearSelectedFile = () => {
+    setSelectedFile(null);
+    setUploadStatus('idle');
+    setUploadMessage('Selecciona un archivo MP3 para importarlo a tu biblioteca.');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -89,7 +115,7 @@ export function LibraryView({ onSelectTrack, onSongsReload }: LibraryViewProps) 
           </p>
         </div>
         <div className="library-actions">
-          <label className="library-search">
+          <label className="library-search library-search-wide">
             <span>Buscar en la biblioteca</span>
             <input
               type="search"
@@ -98,14 +124,41 @@ export function LibraryView({ onSelectTrack, onSongsReload }: LibraryViewProps) 
               placeholder="Buscar por titulo o artista"
             />
           </label>
-          <button
-            className="library-primary-button"
-            type="button"
-            onClick={handleUploadClick}
-            disabled={uploading}
-          >
-            {uploading ? 'Subiendo audio...' : 'Importar MP3'}
-          </button>
+          <div className="library-import-panel">
+            <div className={`library-import-status library-import-status-${uploadStatus}`}>
+              <p className="library-import-label">Importador MP3</p>
+              <h3>
+                {uploadStatus === 'uploading'
+                  ? 'Subiendo archivo'
+                  : uploadStatus === 'success'
+                    ? 'Importacion completada'
+                    : uploadStatus === 'error'
+                      ? 'No se pudo importar'
+                      : selectedFile
+                        ? 'Archivo preparado'
+                        : 'Listo para importar'}
+              </h3>
+              <p>{uploadMessage}</p>
+            </div>
+            <div className="library-import-actions">
+              <button className="library-secondary-button" type="button" onClick={handleUploadClick}>
+                Elegir MP3
+              </button>
+              <button
+                className="library-primary-button"
+                type="button"
+                onClick={handleConfirmUpload}
+                disabled={!selectedFile || uploadStatus === 'uploading'}
+              >
+                {uploadStatus === 'uploading' ? 'Importando...' : 'Confirmar importacion'}
+              </button>
+              {selectedFile ? (
+                <button className="library-secondary-button" type="button" onClick={handleClearSelectedFile}>
+                  Quitar archivo
+                </button>
+              ) : null}
+            </div>
+          </div>
           <input
             ref={fileInputRef}
             className="library-file-input"
