@@ -1,10 +1,9 @@
-const navigationItems = ['Inicio', 'Explorar', 'Biblioteca'];
-const collectionItems = ['Tus mezclas', 'Favoritos', 'Recientes'];
+const navigationItems = ['Inicio', 'Biblioteca', 'Playlists'];
 
 export function Sidebar() {
   return (
     <aside className="sidebar">
-      <div>
+      <div className="sidebar-block">
         <div className="brand">Discora</div>
         <nav className="sidebar-nav" aria-label="Navegación principal">
           {navigationItems.map((item) => (
@@ -15,13 +14,8 @@ export function Sidebar() {
         </nav>
       </div>
 
-      <section className="sidebar-collection" aria-label="Colección">
-        <p className="sidebar-label">Colección</p>
-        {collectionItems.map((item) => (
-          <button key={item} className="collection-button" type="button">
-            {item}
-          </button>
-        ))}
+      <section className="sidebar-collection" aria-label="Estado">
+        <p className="sidebar-label">Tu música, mejor organizada.</p>
       </section>
     </aside>
   );

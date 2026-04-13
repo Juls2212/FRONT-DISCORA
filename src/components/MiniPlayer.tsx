@@ -1,27 +1,21 @@
-import { Song } from '../types';
-
 type MiniPlayerProps = {
-  currentSong: Song | null;
   isPlaying: boolean;
   onTogglePlayback: () => void;
 };
 
-export function MiniPlayer({ currentSong, isPlaying, onTogglePlayback }: MiniPlayerProps) {
+export function MiniPlayer({ isPlaying, onTogglePlayback }: MiniPlayerProps) {
   return (
     <footer className="mini-player">
       <div className="mini-player-track">
-        <div
-          className="mini-player-cover"
-          style={{ background: currentSong?.cover ?? 'linear-gradient(135deg, #2f3e46 0%, #0b090a 100%)' }}
-        />
+        <div className="mini-player-cover" />
         <div>
-          <h3>{currentSong?.title ?? 'Selecciona una canción'}</h3>
-          <p>{currentSong ? `${currentSong.artist} · ${currentSong.album}` : 'Discora está listo para sonar'}</p>
+          <h3>Título de canción</h3>
+          <p>Reproductor base</p>
         </div>
       </div>
 
       <div className="mini-player-controls">
-        <button type="button" onClick={onTogglePlayback} disabled={!currentSong}>
+        <button type="button" onClick={onTogglePlayback}>
           {isPlaying ? 'Pausar' : 'Reproducir'}
         </button>
       </div>
