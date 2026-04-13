@@ -297,13 +297,15 @@ button {
 }
 
 .theme-toggle-icon {
-  width: 28px;
+  min-width: 28px;
   height: 28px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: var(--secondary-button-bg);
   border: 1px solid var(--secondary-button-border);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .sidebar-label,
@@ -321,6 +323,12 @@ button {
 .sidebar-label {
   margin: 0 0 4px;
   color: var(--text-soft);
+}
+
+.sidebar-feedback {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .content-shell {
@@ -466,6 +474,24 @@ button {
 .content-section {
   display: grid;
   gap: 16px;
+}
+
+.state-message {
+  padding: 22px;
+  border-radius: 24px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+}
+
+.state-message h3 {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+}
+
+.state-message p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 
 .section-header {
@@ -639,6 +665,12 @@ button {
   padding: 12px 22px;
   color: var(--primary-button-text);
   background: var(--primary-button-bg);
+}
+
+.mini-player-controls > button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 :root[data-theme='light'] body::after {

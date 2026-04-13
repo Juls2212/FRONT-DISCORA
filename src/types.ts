@@ -14,3 +14,8 @@ export type Playlist = {
   artwork: string;
   detail: string;
 };
+
+export type PlaylistSongNode = {
+  nodeId: number;
+  songId: number;
+};
