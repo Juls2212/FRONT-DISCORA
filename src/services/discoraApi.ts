@@ -121,3 +121,13 @@ export async function deleteSong(songId: number): Promise<void> {
     method: 'DELETE',
   });
 }
+
+export async function uploadSong(file: File): Promise<void> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  await request<void>('/songs/upload', {
+    body: formData,
+    method: 'POST',
+  });
+}

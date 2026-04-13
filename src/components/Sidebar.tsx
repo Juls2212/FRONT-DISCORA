@@ -1,20 +1,26 @@
 import { Playlist } from '../types';
 
+type ViewName = 'home' | 'library' | 'playlists';
+
 const navigationItems = ['Inicio', 'Biblioteca', 'Playlists'];
 
 type SidebarProps = {
+  activeView: ViewName;
   playlists: Playlist[];
   playlistsError: string | null;
   playlistsLoading: boolean;
   theme: 'dark' | 'light';
+  onSelectView: (view: ViewName) => void;
   onToggleTheme: () => void;
 };
 
 export function Sidebar({
+  activeView,
   playlists,
   playlistsError,
   playlistsLoading,
   theme,
+  onSelectView,
   onToggleTheme,
 }: SidebarProps) {
   return (
@@ -28,7 +34,16 @@ export function Sidebar({
         <p className="brand-copy">Escucha con profundidad.</p>
         <nav className="sidebar-nav" aria-label="Navegacion principal">
           {navigationItems.map((item) => (
-            <button key={item} className="nav-button" type="button">
+            <button
+              key={item}
+              className={`nav-button ${activeView === item.toLowerCase().replace('biblioteca', 'library').replace('inicio', 'home') ? 'nav-button-active' : ''}`}
+              type="button"
+              onClick={() =>
+                onSelectView(
+                  item === 'Inicio' ? 'home' : item === 'Biblioteca' ? 'library' : 'playlists',
+                )
+              }
+            >
               {item}
             </button>
           ))}

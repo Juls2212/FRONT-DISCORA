@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { LibraryView } from './components/LibraryView';
 import { MainContent } from './components/MainContent';
 import { MiniPlayer } from './components/MiniPlayer';
 import { Sidebar } from './components/Sidebar';
@@ -6,6 +7,7 @@ import { getPlaylists, getSongs } from './services/discoraApi';
 import { Playlist, Song } from './types';
 
 type Theme = 'dark' | 'light';
+type ViewName = 'home' | 'library' | 'playlists';
 
 const THEME_STORAGE_KEY = 'discora-theme';
 
@@ -19,6 +21,7 @@ function App() {
   const [songsError, setSongsError] = useState<string | null>(null);
   const [playlistsError, setPlaylistsError] = useState<string | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<Song | null>(null);
+  const [activeView, setActiveView] = useState<ViewName>('home');
 
   useEffect(() => {
     const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -106,25 +109,46 @@ function App() {
     setTheme((previousTheme) => (previousTheme === 'dark' ? 'light' : 'dark'));
   };
 
+  const handleSongsReload = (nextSongs: Song[]) => {
+    setSongs(nextSongs);
+    setSelectedTrack((currentTrack) => {
+      if (!nextSongs.length) {
+        return null;
+      }
+
+      if (currentTrack) {
+        return nextSongs.find((song) => song.id === currentTrack.id) ?? nextSongs[0];
+      }
+
+      return nextSongs[0];
+    });
+  };
+
   return (
     <div className="app-shell">
       <div className="app-layout">
         <Sidebar
+          activeView={activeView}
           playlists={playlists}
           playlistsError={playlistsError}
           playlistsLoading={playlistsLoading}
           theme={theme}
+          onSelectView={setActiveView}
           onToggleTheme={handleToggleTheme}
         />
         <div className="content-shell">
-          <MainContent
-            playlists={playlists}
-            playlistsError={playlistsError}
-            playlistsLoading={playlistsLoading}
-            songs={songs}
-            songsError={songsError}
-            songsLoading={songsLoading}
-          />
+          {activeView === 'library' ? (
+            <LibraryView onSelectTrack={setSelectedTrack} onSongsReload={handleSongsReload} />
+          ) : (
+            <MainContent
+              playlists={playlists}
+              playlistsError={playlistsError}
+              playlistsLoading={playlistsLoading}
+              songs={songs}
+              songsError={songsError}
+              songsLoading={songsLoading}
+            />
+          )}
         </div>
       </div>
       <MiniPlayer
