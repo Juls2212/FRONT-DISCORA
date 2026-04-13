@@ -9,7 +9,7 @@ import {
   removeSongFromPlaylist,
   setCurrentSongInPlaylist,
 } from '../services/discoraApi';
-import { Playlist, PlaylistDetail, Song } from '../types';
+import { PlaybackContext, Playlist, PlaylistDetail, Song } from '../types';
 import { PlaylistCard } from './PlaylistCard';
 import { SectionContainer } from './SectionContainer';
 import { StateMessage } from './StateMessage';
@@ -20,7 +20,7 @@ type PlaylistsViewProps = {
   playlistsLoading: boolean;
   songs: Song[];
   onRefreshPlaylists: () => Promise<void>;
-  onSelectTrack: (song: Song) => void;
+  onPlayTrack: (song: Song, context: PlaybackContext) => void;
 };
 
 export function PlaylistsView({
@@ -29,7 +29,7 @@ export function PlaylistsView({
   playlistsLoading,
   songs,
   onRefreshPlaylists,
-  onSelectTrack,
+  onPlayTrack,
 }: PlaylistsViewProps) {
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<Playlist['id'] | null>(null);
   const [playlistDetail, setPlaylistDetail] = useState<PlaylistDetail | null>(null);
@@ -48,6 +48,18 @@ export function PlaylistsView({
   const availableSongs = songs.filter(
     (song) => !playlistDetail?.songs.some((entry) => entry.song.id === song.id),
   );
+
+  const getPlaylistPlaybackContext = (): PlaybackContext | null => {
+    if (!playlistDetail) {
+      return null;
+    }
+
+    return {
+      playlistId: playlistDetail.id,
+      playlistName: playlistDetail.name,
+      type: 'playlist',
+    };
+  };
 
   const loadPlaylistDetail = async (playlistId: Playlist['id']) => {
     setDetailLoading(true);
@@ -344,7 +356,17 @@ export function PlaylistsView({
                     key={entry.nodeId}
                     className={`playlist-detail-row${playlistDetail.currentNodeId === entry.nodeId ? ' playlist-detail-row-current' : ''}`}
                   >
-                    <button className="playlist-detail-meta" type="button" onClick={() => onSelectTrack(entry.song)}>
+                    <button
+                      className="playlist-detail-meta"
+                      type="button"
+                      onClick={() => {
+                        const context = getPlaylistPlaybackContext();
+
+                        if (context) {
+                          onPlayTrack(entry.song, context);
+                        }
+                      }}
+                    >
                       <div className="playlist-detail-cover" style={{ background: entry.song.cover }} />
                       <div>
                         <h3>{entry.song.title}</h3>
@@ -380,7 +402,17 @@ export function PlaylistsView({
                       >
                         {settingCurrentNodeId === entry.nodeId ? 'Guardando...' : 'Marcar actual'}
                       </button>
-                      <button className="library-secondary-button" type="button" onClick={() => onSelectTrack(entry.song)}>
+                      <button
+                        className="library-secondary-button"
+                        type="button"
+                        onClick={() => {
+                          const context = getPlaylistPlaybackContext();
+
+                          if (context) {
+                            onPlayTrack(entry.song, context);
+                          }
+                        }}
+                      >
                         Escuchar
                       </button>
                       <button

@@ -1,18 +1,18 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { deleteSong, getSongs, searchSongs, uploadSong } from '../services/discoraApi';
-import { Song } from '../types';
+import { PlaybackContext, Song } from '../types';
 import { needsDurationResolution, resolveSongDuration } from '../utils/audio';
 import { SectionContainer } from './SectionContainer';
 import { StateMessage } from './StateMessage';
 
 type LibraryViewProps = {
-  onSelectTrack: (song: Song) => void;
+  onPlayTrack: (song: Song, context: PlaybackContext) => void;
   onSongsReload: (songs: Song[]) => void;
 };
 
 type UploadStatus = 'error' | 'idle' | 'success' | 'uploading';
 
-export function LibraryView({ onSelectTrack, onSongsReload }: LibraryViewProps) {
+export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -235,7 +235,7 @@ export function LibraryView({ onSelectTrack, onSongsReload }: LibraryViewProps) 
           <div className="library-song-list">
             {songs.map((song) => (
               <article key={song.id} className="library-song-row">
-                <button className="library-song-meta" type="button" onClick={() => onSelectTrack(song)}>
+                <button className="library-song-meta" type="button" onClick={() => onPlayTrack(song, { type: 'library' })}>
                   <div className="library-song-cover" style={{ background: song.cover }} />
                   <div>
                     <h3>{song.title}</h3>
@@ -246,8 +246,8 @@ export function LibraryView({ onSelectTrack, onSongsReload }: LibraryViewProps) 
                 </button>
                 <div className="library-song-actions">
                   <span>{song.duration}</span>
-                  <button className="library-secondary-button" type="button" onClick={() => onSelectTrack(song)}>
-                    Seleccionar
+                  <button className="library-secondary-button" type="button" onClick={() => onPlayTrack(song, { type: 'library' })}>
+                    Reproducir
                   </button>
                   <button
                     className="library-danger-button"

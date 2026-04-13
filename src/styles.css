@@ -932,6 +932,60 @@ button {
   gap: 14px;
 }
 
+.mini-player-track-button {
+  flex: 1;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.mini-player-center {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  min-width: min(460px, 100%);
+}
+
+.mini-player-progress {
+  display: grid;
+  grid-template-columns: 46px minmax(140px, 340px) 46px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.mini-player-progress span,
+.mini-player-context,
+.mini-player-meta p {
+  color: var(--text-secondary);
+}
+
+.mini-player-progress span,
+.mini-player-context {
+  font-size: 0.84rem;
+}
+
+.mini-player-progress input {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.mini-player-meta {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  min-width: 160px;
+  text-align: right;
+}
+
+.mini-player-meta p {
+  margin: 0;
+}
+
 .mini-player-cover {
   width: 64px;
   height: 64px;
@@ -1136,6 +1190,17 @@ button {
   .mini-player {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .mini-player-center,
+  .mini-player-progress,
+  .mini-player-meta {
+    width: 100%;
+  }
+
+  .mini-player-meta {
+    justify-items: start;
+    text-align: left;
   }
 }
 

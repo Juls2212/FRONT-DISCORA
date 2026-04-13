@@ -32,3 +32,13 @@ export type PlaylistDetail = Playlist & {
   currentNodeId: number | string | null;
   songs: PlaylistSongEntry[];
 };
+
+export type PlaybackContext =
+  | {
+      type: 'library';
+    }
+  | {
+      playlistId: number | string;
+      playlistName: string;
+      type: 'playlist';
+    };

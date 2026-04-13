@@ -5,7 +5,7 @@ import { MiniPlayer } from './components/MiniPlayer';
 import { PlaylistsView } from './components/PlaylistsView';
 import { Sidebar } from './components/Sidebar';
 import { getPlaylists, getSongs } from './services/discoraApi';
-import { Playlist, Song } from './types';
+import { PlaybackContext, Playlist, Song } from './types';
 import { needsDurationResolution, resolveSongDuration } from './utils/audio';
 
 type Theme = 'dark' | 'light';
@@ -25,6 +25,9 @@ function App() {
   const [playlistsError, setPlaylistsError] = useState<string | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<Song | null>(null);
   const [activeView, setActiveView] = useState<ViewName>('home');
+  const [currentTime, setCurrentTime] = useState(0);
+  const [playbackDuration, setPlaybackDuration] = useState(0);
+  const [playbackContext, setPlaybackContext] = useState<PlaybackContext | null>(null);
 
   const loadSongs = async () => {
     setSongsLoading(true);
@@ -34,6 +37,7 @@ function App() {
       const nextSongs = await getSongs();
       setSongs(nextSongs);
       setSelectedTrack((currentTrack) => currentTrack ?? nextSongs[0] ?? null);
+      setPlaybackContext((currentContext) => currentContext ?? (nextSongs[0] ? { type: 'library' } : null));
     } catch {
       setSongsError('No se pudieron cargar las canciones.');
     } finally {
@@ -77,6 +81,7 @@ function App() {
 
     const handleEnded = () => {
       setIsPlaying(false);
+      setCurrentTime(0);
     };
 
     const handleError = () => {
@@ -87,13 +92,39 @@ function App() {
       setIsPlaying(false);
     };
 
+    const handlePlay = () => {
+      setIsPlaying(true);
+    };
+
+    const handlePause = () => {
+      setIsPlaying(false);
+    };
+
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
+
+    const handleLoadedMetadata = () => {
+      setPlaybackDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+    };
+
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('error', handleError);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('durationchange', handleLoadedMetadata);
 
     return () => {
       audio.pause();
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('durationchange', handleLoadedMetadata);
     };
   }, [selectedTrack]);
 
@@ -123,7 +154,10 @@ function App() {
 
       const resolvedDurations = new Map(
         results
-          .filter((result): result is PromiseFulfilledResult<{ duration: string; id: Song['id'] }> => result.status === 'fulfilled')
+          .filter(
+            (result): result is PromiseFulfilledResult<{ duration: string; id: Song['id'] }> =>
+              result.status === 'fulfilled',
+          )
           .map((result) => [result.value.id, result.value.duration]),
       );
 
@@ -163,12 +197,15 @@ function App() {
       audio.removeAttribute('src');
       audio.load();
       setIsPlaying(false);
+      setCurrentTime(0);
+      setPlaybackDuration(0);
       return;
     }
 
     if (audio.src !== selectedTrack.audioUrl) {
       audio.src = selectedTrack.audioUrl;
       audio.load();
+      setCurrentTime(0);
     }
 
     if (!isPlaying) {
@@ -187,11 +224,24 @@ function App() {
   }, [isPlaying, selectedTrack]);
 
   const handleTogglePlayback = () => {
-    if (!selectedTrack) {
+    const audio = audioRef.current;
+
+    if (!selectedTrack || !audio) {
       return;
     }
 
-    setIsPlaying((previousState) => !previousState);
+    if (audio.paused) {
+      void audio.play().catch((error) => {
+        console.error('Discora playback resume failed', {
+          audioUrl: selectedTrack.audioUrl,
+          error,
+          selectedTrack,
+        });
+      });
+      return;
+    }
+
+    audio.pause();
   };
 
   const handleToggleTheme = () => {
@@ -213,6 +263,24 @@ function App() {
     });
   };
 
+  const handlePlayTrack = (song: Song, context: PlaybackContext) => {
+    setSelectedTrack(song);
+    setPlaybackContext(context);
+    setCurrentTime(0);
+    setIsPlaying(true);
+  };
+
+  const handleSeek = (nextTime: number) => {
+    const audio = audioRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    audio.currentTime = nextTime;
+    setCurrentTime(nextTime);
+  };
+
   return (
     <div className="app-shell">
       <div className="app-layout">
@@ -227,14 +295,14 @@ function App() {
         />
         <div className="content-shell">
           {activeView === 'library' ? (
-            <LibraryView onSelectTrack={setSelectedTrack} onSongsReload={handleSongsReload} />
+            <LibraryView onPlayTrack={handlePlayTrack} onSongsReload={handleSongsReload} />
           ) : activeView === 'playlists' ? (
             <PlaylistsView
               playlists={playlists}
               playlistsError={playlistsError}
               playlistsLoading={playlistsLoading}
               songs={songs}
-              onSelectTrack={setSelectedTrack}
+              onPlayTrack={handlePlayTrack}
               onRefreshPlaylists={loadPlaylists}
             />
           ) : (
@@ -250,8 +318,13 @@ function App() {
         </div>
       </div>
       <MiniPlayer
+        currentTime={currentTime}
         isPlaying={isPlaying}
+        onOpenFullPlayer={() => console.debug('Discora full player placeholder', { playbackContext, selectedTrack })}
+        onSeek={handleSeek}
         onTogglePlayback={handleTogglePlayback}
+        playbackContext={playbackContext}
+        playbackDuration={playbackDuration}
         selectedTrack={selectedTrack}
       />
     </div>
