@@ -1085,9 +1085,41 @@ button {
 .full-player-atmosphere {
   position: absolute;
   inset: -12%;
-  opacity: 0.18;
-  filter: blur(64px) saturate(1.05);
+  opacity: 1;
+  filter: saturate(1.02);
   transform: scale(1.08);
+  transition: all 0.5s ease;
+}
+
+.full-player-aura {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  transition: all 0.5s ease;
+}
+
+.full-player-aura-primary {
+  width: 44%;
+  height: 44%;
+  top: 10%;
+  left: 6%;
+  background: radial-gradient(circle, var(--player-ambient-accent) 0%, transparent 72%);
+}
+
+.full-player-aura-secondary {
+  width: 38%;
+  height: 38%;
+  right: 8%;
+  bottom: 16%;
+  background: radial-gradient(circle, var(--player-ambient-glow) 0%, transparent 74%);
+}
+
+.full-player-aura-shadow {
+  width: 52%;
+  height: 52%;
+  right: 18%;
+  top: 18%;
+  background: radial-gradient(circle, var(--player-ambient-shadow) 0%, transparent 78%);
 }
 
 .full-player-close {
@@ -1345,8 +1377,23 @@ button {
 }
 
 :root[data-theme='light'] .full-player-atmosphere {
-  opacity: 0.14;
-  filter: blur(72px) saturate(0.9);
+  filter: saturate(0.9);
+}
+
+:root[data-theme='light'] .full-player-aura {
+  filter: blur(92px);
+}
+
+:root[data-theme='light'] .full-player-aura-primary {
+  opacity: 0.78;
+}
+
+:root[data-theme='light'] .full-player-aura-secondary {
+  opacity: 0.62;
+}
+
+:root[data-theme='light'] .full-player-aura-shadow {
+  opacity: 0.4;
 }
 
 :root[data-theme='light'] .full-player-vinyl {
