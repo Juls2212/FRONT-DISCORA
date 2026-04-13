@@ -2,7 +2,12 @@ import { sidebarPlaylists } from '../data';
 
 const navigationItems = ['Inicio', 'Biblioteca', 'Playlists'];
 
-export function Sidebar() {
+type SidebarProps = {
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
+};
+
+export function Sidebar({ theme, onToggleTheme }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="sidebar-block">
@@ -22,6 +27,12 @@ export function Sidebar() {
       </div>
 
       <section className="sidebar-collection" aria-label="Playlists de referencia">
+        <button className="theme-toggle" type="button" onClick={onToggleTheme} aria-label="Cambiar tema">
+          <span className="theme-toggle-icon" aria-hidden="true">
+            {theme === 'dark' ? '☀' : '☾'}
+          </span>
+          <span>{theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}</span>
+        </button>
         <p className="sidebar-label">Selecciones</p>
         {sidebarPlaylists.map((item) => (
           <button key={item} className="collection-button" type="button">
