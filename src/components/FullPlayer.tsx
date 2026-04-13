@@ -371,14 +371,35 @@ export function FullPlayer({
             </div>
 
             <div className="full-player-controls">
-              <button className="player-secondary-button" type="button" onClick={onPrevious} disabled={!canGoPrevious}>
-                Anterior
+              <button
+                className="full-player-icon-button"
+                type="button"
+                onClick={onPrevious}
+                disabled={!canGoPrevious}
+                aria-label="Anterior"
+                title="Anterior"
+              >
+                <span aria-hidden="true">{'<<'}</span>
               </button>
-              <button className="full-player-primary" type="button" onClick={onTogglePlayback} disabled={!selectedTrack}>
-                {isPlaying ? 'Pausar' : 'Reproducir'}
+              <button
+                className="full-player-primary full-player-primary-icon"
+                type="button"
+                onClick={onTogglePlayback}
+                disabled={!selectedTrack}
+                aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
+                title={isPlaying ? 'Pausar' : 'Reproducir'}
+              >
+                <span aria-hidden="true">{isPlaying ? '||' : '>'}</span>
               </button>
-              <button className="player-secondary-button" type="button" onClick={onNext} disabled={!canGoNext}>
-                Siguiente
+              <button
+                className="full-player-icon-button"
+                type="button"
+                onClick={onNext}
+                disabled={!canGoNext}
+                aria-label="Siguiente"
+                title="Siguiente"
+              >
+                <span aria-hidden="true">{'>>'}</span>
               </button>
             </div>
           </div>
