@@ -3,6 +3,7 @@ export type Song = {
   title: string;
   artist: string;
   album: string;
+  audioUrl: string;
   duration: string;
   cover: string;
 };

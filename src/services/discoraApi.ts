@@ -1,4 +1,5 @@
 import { Playlist, PlaylistDetail, PlaylistSongEntry, PlaylistSongNode, Song } from '../types';
+import { normalizeAudioUrl } from '../utils/audio';
 import { request } from './http';
 
 type UnknownRecord = Record<string, unknown>;
@@ -82,6 +83,7 @@ function normalizeSong(item: unknown, index: number): Song {
 
   return {
     album: asString(record.album ?? record.playlist, 'Sin album'),
+    audioUrl: normalizeAudioUrl(asString(record.audioUrl, '')),
     artist: asString(record.artist ?? record.author, 'Artista sin nombre'),
     cover: asString(record.coverUrl, songArtwork[index % songArtwork.length]),
     duration: formatDuration(record.duration ?? record.length),
@@ -197,9 +199,18 @@ export async function deleteSong(songId: EntityId): Promise<void> {
   });
 }
 
-export async function uploadSong(file: File): Promise<void> {
+export async function uploadSong(payload: { artist?: string; file: File; title?: string }): Promise<void> {
   const formData = new FormData();
-  formData.append('file', file);
+  const derivedTitle = payload.file.name.replace(/\.[^/.]+$/, '').trim();
+  const title = payload.title?.trim() || derivedTitle;
+  const artist = payload.artist?.trim();
+
+  formData.append('file', payload.file);
+  formData.append('title', title);
+
+  if (artist) {
+    formData.append('artist', artist);
+  }
 
   await request<void>('/songs/upload', {
     body: formData,

@@ -1,6 +1,7 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { deleteSong, getSongs, searchSongs, uploadSong } from '../services/discoraApi';
 import { Song } from '../types';
+import { needsDurationResolution, resolveSongDuration } from '../utils/audio';
 import { SectionContainer } from './SectionContainer';
 import { StateMessage } from './StateMessage';
 
@@ -41,6 +42,51 @@ export function LibraryView({ onSelectTrack, onSongsReload }: LibraryViewProps) 
     void loadSongs();
   }, [searchTerm]);
 
+  useEffect(() => {
+    const songsToResolve = songs.filter((song) => song.audioUrl && needsDurationResolution(song));
+
+    if (!songsToResolve.length) {
+      return;
+    }
+
+    let active = true;
+
+    void Promise.allSettled(
+      songsToResolve.map(async (song) => ({
+        duration: await resolveSongDuration(song),
+        id: song.id,
+      })),
+    ).then((results) => {
+      if (!active) {
+        return;
+      }
+
+      const resolvedDurations = new Map(
+        results
+          .filter((result): result is PromiseFulfilledResult<{ duration: string; id: Song['id'] }> => result.status === 'fulfilled')
+          .map((result) => [result.value.id, result.value.duration]),
+      );
+
+      if (!resolvedDurations.size) {
+        return;
+      }
+
+      setSongs((currentSongs) => {
+        const nextSongs = currentSongs.map((song) =>
+          resolvedDurations.has(song.id)
+            ? { ...song, duration: resolvedDurations.get(song.id) ?? song.duration }
+            : song,
+        );
+        onSongsReload(nextSongs);
+        return nextSongs;
+      });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [songs, onSongsReload]);
+
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
@@ -68,7 +114,9 @@ export function LibraryView({ onSelectTrack, onSongsReload }: LibraryViewProps) 
     setUploadMessage(`Importando ${selectedFile.name}...`);
 
     try {
-      await uploadSong(selectedFile);
+      await uploadSong({
+        file: selectedFile,
+      });
       await loadSongs();
       setUploadStatus('success');
       setUploadMessage(`Importacion completada: ${selectedFile.name}`);

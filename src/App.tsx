@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LibraryView } from './components/LibraryView';
 import { MainContent } from './components/MainContent';
 import { MiniPlayer } from './components/MiniPlayer';
@@ -6,6 +6,7 @@ import { PlaylistsView } from './components/PlaylistsView';
 import { Sidebar } from './components/Sidebar';
 import { getPlaylists, getSongs } from './services/discoraApi';
 import { Playlist, Song } from './types';
+import { needsDurationResolution, resolveSongDuration } from './utils/audio';
 
 type Theme = 'dark' | 'light';
 type ViewName = 'home' | 'library' | 'playlists';
@@ -13,6 +14,7 @@ type ViewName = 'home' | 'library' | 'playlists';
 const THEME_STORAGE_KEY = 'discora-theme';
 
 function App() {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [theme, setTheme] = useState<Theme>('dark');
   const [songs, setSongs] = useState<Song[]>([]);
@@ -39,6 +41,32 @@ function App() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
+
+  useEffect(() => {
+    const audio = new Audio();
+    audioRef.current = audio;
+
+    const handleEnded = () => {
+      setIsPlaying(false);
+    };
+
+    const handleError = () => {
+      console.error('Discora playback error', {
+        audioUrl: audio.currentSrc,
+        selectedTrack,
+      });
+      setIsPlaying(false);
+    };
+
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
+
+    return () => {
+      audio.pause();
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
+    };
+  }, [selectedTrack]);
 
   useEffect(() => {
     let active = true;
@@ -97,6 +125,90 @@ function App() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const songsToResolve = songs.filter((song) => song.audioUrl && needsDurationResolution(song));
+
+    if (!songsToResolve.length) {
+      return;
+    }
+
+    let active = true;
+
+    void Promise.allSettled(
+      songsToResolve.map(async (song) => ({
+        duration: await resolveSongDuration(song),
+        id: song.id,
+      })),
+    ).then((results) => {
+      if (!active) {
+        return;
+      }
+
+      const resolvedDurations = new Map(
+        results
+          .filter((result): result is PromiseFulfilledResult<{ duration: string; id: Song['id'] }> => result.status === 'fulfilled')
+          .map((result) => [result.value.id, result.value.duration]),
+      );
+
+      if (!resolvedDurations.size) {
+        return;
+      }
+
+      setSongs((currentSongs) =>
+        currentSongs.map((song) =>
+          resolvedDurations.has(song.id)
+            ? { ...song, duration: resolvedDurations.get(song.id) ?? song.duration }
+            : song,
+        ),
+      );
+
+      setSelectedTrack((currentTrack) =>
+        currentTrack && resolvedDurations.has(currentTrack.id)
+          ? { ...currentTrack, duration: resolvedDurations.get(currentTrack.id) ?? currentTrack.duration }
+          : currentTrack,
+      );
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [songs]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    if (!selectedTrack?.audioUrl) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+      setIsPlaying(false);
+      return;
+    }
+
+    if (audio.src !== selectedTrack.audioUrl) {
+      audio.src = selectedTrack.audioUrl;
+      audio.load();
+    }
+
+    if (!isPlaying) {
+      audio.pause();
+      return;
+    }
+
+    void audio.play().catch((error) => {
+      console.error('Discora playback start failed', {
+        audioUrl: selectedTrack.audioUrl,
+        error,
+        selectedTrack,
+      });
+      setIsPlaying(false);
+    });
+  }, [isPlaying, selectedTrack]);
 
   const handleTogglePlayback = () => {
     if (!selectedTrack) {

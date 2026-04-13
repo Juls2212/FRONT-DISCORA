@@ -24,7 +24,11 @@ export function MiniPlayer({ isPlaying, onTogglePlayback, selectedTrack }: MiniP
             {selectedTrack ? 'Ahora en espera' : 'Sin seleccion'}
           </span>
           <h3>{selectedTrack?.title ?? 'Selecciona una cancion'}</h3>
-          <p>{selectedTrack ? `${selectedTrack.artist} · ${selectedTrack.album}` : 'Discora conectada al backend'}</p>
+          <p>
+            {selectedTrack
+              ? `${selectedTrack.artist} · ${selectedTrack.album} · ${selectedTrack.duration}`
+              : 'Discora conectada al backend'}
+          </p>
         </div>
       </div>
 
