@@ -1071,6 +1071,19 @@ button {
   background: var(--primary-button-bg);
 }
 
+.mini-player-primary-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0 !important;
+}
+
+.mini-player-primary-icon span,
+.player-secondary-button span {
+  line-height: 1;
+}
+
 .mini-player-controls > button:disabled {
   opacity: 0.55;
   cursor: not-allowed;

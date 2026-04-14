@@ -1,4 +1,5 @@
 import { PlaybackContext, Song } from '../types';
+import { getCoverSurfaceStyle } from '../utils/songPresentation';
 
 type MiniPlayerProps = {
   canGoNext: boolean;
@@ -55,10 +56,7 @@ export function MiniPlayer({
       <button className="mini-player-track mini-player-track-button" type="button" onClick={onOpenFullPlayer}>
         <div
           className="mini-player-cover"
-          style={{
-            background:
-              selectedTrack?.cover ?? 'linear-gradient(145deg, #52627d 0%, #202739 100%)',
-          }}
+          style={getCoverSurfaceStyle(selectedTrack?.cover)}
         >
           <div className="mini-player-ring" />
         </div>
@@ -77,11 +75,19 @@ export function MiniPlayer({
             aria-label="Anterior"
             onClick={onPrevious}
             disabled={!canGoPrevious}
+            title="Anterior"
           >
-            {'<'}
+            <span aria-hidden="true">{'<<'}</span>
           </button>
-          <button type="button" onClick={onTogglePlayback} disabled={!selectedTrack}>
-            {isPlaying ? 'Pausar' : 'Reproducir'}
+          <button
+            className="mini-player-primary-icon"
+            type="button"
+            onClick={onTogglePlayback}
+            disabled={!selectedTrack}
+            aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
+            title={isPlaying ? 'Pausar' : 'Reproducir'}
+          >
+            <span aria-hidden="true">{isPlaying ? '||' : '>'}</span>
           </button>
           <button
             className="player-secondary-button"
@@ -89,8 +95,9 @@ export function MiniPlayer({
             aria-label="Siguiente"
             onClick={onNext}
             disabled={!canGoNext}
+            title="Siguiente"
           >
-            {'>'}
+            <span aria-hidden="true">{'>>'}</span>
           </button>
         </div>
         <div className="mini-player-progress">

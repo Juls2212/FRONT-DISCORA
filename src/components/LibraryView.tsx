@@ -3,7 +3,7 @@ import { FavoriteButton } from './FavoriteButton';
 import { deleteSong, getSongs, searchSongs, uploadSong } from '../services/discoraApi';
 import { PlaybackContext, Song, SongPresentationState } from '../types';
 import { extractEmbeddedCover, readImageFileAsDataUrl } from '../utils/mp3Metadata';
-import { decorateSongs } from '../utils/songPresentation';
+import { decorateSongs, getCoverSurfaceStyle } from '../utils/songPresentation';
 import { needsDurationResolution, resolveSongDuration } from '../utils/audio';
 import { SectionContainer } from './SectionContainer';
 import { StateMessage } from './StateMessage';
@@ -330,7 +330,7 @@ export function LibraryView({
                   type="button"
                   onClick={() => onPlayTrack(song, { type: 'library' }, displayedSongs)}
                 >
-                  <div className="library-song-cover" style={{ background: song.cover }} />
+                  <div className="library-song-cover" style={getCoverSurfaceStyle(song.cover)} />
                   <div>
                     <h3>{song.title}</h3>
                     <p>{song.artist} - {song.album}</p>

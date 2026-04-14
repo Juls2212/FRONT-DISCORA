@@ -10,7 +10,7 @@ import {
   setCurrentSongInPlaylist,
 } from '../services/discoraApi';
 import { FavoriteButton } from './FavoriteButton';
-import { decorateSong } from '../utils/songPresentation';
+import { decorateSong, getCoverSurfaceStyle } from '../utils/songPresentation';
 import { PlaybackContext, Playlist, PlaylistDetail, Song, SongPresentationState } from '../types';
 import { PlaylistCard } from './PlaylistCard';
 import { SectionContainer } from './SectionContainer';
@@ -392,7 +392,7 @@ export function PlaylistsView({
                         }
                       }}
                     >
-                      <div className="playlist-detail-cover" style={{ background: entry.song.cover }} />
+                      <div className="playlist-detail-cover" style={getCoverSurfaceStyle(entry.song.cover)} />
                       <div>
                         <h3>{entry.song.title}</h3>
                         <p>{entry.song.artist} - {entry.song.album}</p>
