@@ -20,6 +20,8 @@ const pipedInstances = [
   'https://piped.adminforge.de',
 ];
 
+const REQUEST_TIMEOUT_MS = 8000;
+
 const youtubeArtwork = [
   'linear-gradient(145deg, #5b667e 0%, #202739 100%)',
   'linear-gradient(145deg, #7f6a77 0%, #2d2330 100%)',
@@ -65,6 +67,17 @@ function parsePlaylistId(input: string): string | null {
 
   try {
     const url = new URL(trimmedInput);
+    const host = url.hostname.toLowerCase();
+
+    if (
+      host === 'youtube.com' ||
+      host === 'www.youtube.com' ||
+      host === 'm.youtube.com' ||
+      host === 'music.youtube.com'
+    ) {
+      return url.searchParams.get('list');
+    }
+
     return url.searchParams.get('list');
   } catch {
     return null;
@@ -72,13 +85,22 @@ function parsePlaylistId(input: string): string | null {
 }
 
 async function requestJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    return (await response.json()) as T;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-
-  return (await response.json()) as T;
 }
 
 function getThumbnailUrl(record: UnknownRecord, videoId: string): string {
@@ -112,7 +134,7 @@ function normalizeImportedSong(
   return {
     album: playlistTitle || 'Importado desde YouTube',
     artist: asString(record.author ?? record.uploaderName ?? record.artist) || 'Canal de YouTube',
-    audioUrl: '',
+    audioUrl: videoId,
     backendCoverUrl: thumbnail,
     cover: thumbnail || placeholderCover,
     duration: durationInSeconds ? formatDurationFromSeconds(durationInSeconds) : '--:--',
