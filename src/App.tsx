@@ -7,6 +7,7 @@ import { PlaylistsView } from './components/PlaylistsView';
 import { Sidebar } from './components/Sidebar';
 import { usePlayback } from './context/PlaybackProvider';
 import { getPlaylists, getSongs } from './services/discoraApi';
+import { importYouTubePlaylist } from './services/youtubeImport';
 import { Playlist, Song, SongPresentationState } from './types';
 import { decorateSong, decorateSongs, getSongIdKey } from './utils/songPresentation';
 import { needsDurationResolution, resolveSongDuration } from './utils/audio';
@@ -18,6 +19,7 @@ const THEME_STORAGE_KEY = 'discora-theme';
 const FAVORITES_STORAGE_KEY = 'discora-favorite-song-ids';
 const MANUAL_COVERS_STORAGE_KEY = 'discora-manual-cover-by-song-id';
 const EMBEDDED_COVERS_STORAGE_KEY = 'discora-embedded-cover-by-song-id';
+const YOUTUBE_IMPORTS_STORAGE_KEY = 'discora-youtube-imported-songs';
 
 function readStorageRecord(storageKey: string): Record<string, string> {
   try {
@@ -76,6 +78,14 @@ function App() {
   const [embeddedCoverBySongId, setEmbeddedCoverBySongId] = useState<Record<string, string>>(
     () => readStorageRecord(EMBEDDED_COVERS_STORAGE_KEY),
   );
+  const [youtubeSongs, setYoutubeSongs] = useState<Song[]>(() => {
+    try {
+      const value = window.localStorage.getItem(YOUTUBE_IMPORTS_STORAGE_KEY);
+      return value ? (JSON.parse(value) as Song[]) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const presentationState = useMemo<SongPresentationState>(
     () => ({
@@ -86,7 +96,8 @@ function App() {
     [embeddedCoverBySongId, favoriteSongIds, manualCoverBySongId],
   );
 
-  const displayedSongs = useMemo(() => decorateSongs(songs, presentationState), [songs, presentationState]);
+  const mergedSongs = useMemo(() => [...songs, ...youtubeSongs], [songs, youtubeSongs]);
+  const displayedSongs = useMemo(() => decorateSongs(mergedSongs, presentationState), [mergedSongs, presentationState]);
   const displayedSelectedTrack = useMemo(
     () => (selectedTrack ? decorateSong(selectedTrack, presentationState) : null),
     [presentationState, selectedTrack],
@@ -104,6 +115,10 @@ function App() {
     window.localStorage.setItem(EMBEDDED_COVERS_STORAGE_KEY, JSON.stringify(embeddedCoverBySongId));
   }, [embeddedCoverBySongId]);
 
+  useEffect(() => {
+    window.localStorage.setItem(YOUTUBE_IMPORTS_STORAGE_KEY, JSON.stringify(youtubeSongs));
+  }, [youtubeSongs]);
+
   const loadSongs = async () => {
     setSongsLoading(true);
     setSongsError(null);
@@ -111,7 +126,6 @@ function App() {
     try {
       const nextSongs = await getSongs();
       setSongs(nextSongs);
-      syncLibrarySongs(nextSongs);
     } catch {
       setSongsError('No se pudieron cargar las canciones.');
     } finally {
@@ -155,6 +169,10 @@ function App() {
   }, []);
 
   useEffect(() => {
+    syncLibrarySongs(mergedSongs);
+  }, [mergedSongs, syncLibrarySongs]);
+
+  useEffect(() => {
     const songsToResolve = songs.filter((song) => song.audioUrl && needsDurationResolution(song));
 
     if (!songsToResolve.length) {
@@ -192,7 +210,6 @@ function App() {
             ? { ...song, duration: resolvedDurations.get(song.id) ?? song.duration }
             : song,
         );
-        syncLibrarySongs(nextSongs);
         return nextSongs;
       });
     });
@@ -200,7 +217,7 @@ function App() {
     return () => {
       active = false;
     };
-  }, [songs, syncLibrarySongs]);
+  }, [songs]);
 
   const handleToggleTheme = () => {
     setTheme((previousTheme) => (previousTheme === 'dark' ? 'light' : 'dark'));
@@ -208,7 +225,22 @@ function App() {
 
   const handleSongsReload = (nextSongs: Song[]) => {
     setSongs(nextSongs);
-    syncLibrarySongs(nextSongs);
+  };
+
+  const handleImportYouTubePlaylist = async (playlistUrl: string) => {
+    const importedSongs = await importYouTubePlaylist(playlistUrl);
+
+    setYoutubeSongs((currentSongs) => {
+      const existingIds = new Set(currentSongs.map((song) => String(song.id)));
+      const nextSongs = importedSongs.filter((song) => !existingIds.has(String(song.id)));
+      return nextSongs.length ? [...currentSongs, ...nextSongs] : currentSongs;
+    });
+
+    return importedSongs.length;
+  };
+
+  const handleRemoveYouTubeSong = (songId: Song['id']) => {
+    setYoutubeSongs((currentSongs) => currentSongs.filter((song) => song.id !== songId));
   };
 
   const handleToggleFavorite = (songId: Song['id']) => {
@@ -264,9 +296,12 @@ function App() {
               manualCoverBySongId={manualCoverBySongId}
               onAssignEmbeddedCover={handleAssignEmbeddedCover}
               onAssignManualCover={handleAssignManualCover}
+              onImportYouTubePlaylist={handleImportYouTubePlaylist}
               onPlayTrack={playTrack}
+              onRemoveYouTubeSong={handleRemoveYouTubeSong}
               onSongsReload={handleSongsReload}
               onToggleFavorite={handleToggleFavorite}
+              youtubeSongs={youtubeSongs}
             />
           ) : activeView === 'playlists' ? (
             <PlaylistsView

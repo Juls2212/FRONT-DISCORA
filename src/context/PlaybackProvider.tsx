@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { resolveYouTubeAudioStream } from '../services/youtubeImport';
 import { EqualizerState, PlaybackContext, Song } from '../types';
 
 type PlaybackStore = {
@@ -256,25 +257,61 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    if (audio.src !== selectedTrack.audioUrl) {
-      audio.src = selectedTrack.audioUrl;
-      audio.load();
-      setCurrentTime(0);
-    }
+    let active = true;
 
-    if (!isPlaying) {
-      audio.pause();
-      return;
-    }
+    const startPlayback = async () => {
+      let nextAudioUrl = selectedTrack.audioUrl;
 
-    void audio.play().catch((error) => {
-      console.error('Discora playback start failed', {
-        audioUrl: selectedTrack.audioUrl,
+      if (selectedTrack.sourceType === 'youtube' && selectedTrack.youtubeVideoId) {
+        nextAudioUrl = await resolveYouTubeAudioStream(selectedTrack.youtubeVideoId);
+
+        if (!active) {
+          return;
+        }
+
+        setSelectedTrack((currentTrack) =>
+          currentTrack?.id === selectedTrack.id && currentTrack.audioUrl !== nextAudioUrl
+            ? { ...currentTrack, audioUrl: nextAudioUrl }
+            : currentTrack,
+        );
+      }
+
+      if (!nextAudioUrl) {
+        throw new Error('Missing audio url');
+      }
+
+      if (audio.src !== nextAudioUrl) {
+        audio.src = nextAudioUrl;
+        audio.load();
+        setCurrentTime(0);
+      }
+
+      if (!isPlaying) {
+        audio.pause();
+        return;
+      }
+
+      void audio.play().catch((error) => {
+        console.error('Discora playback start failed', {
+          audioUrl: nextAudioUrl,
+          error,
+          selectedTrack,
+        });
+        setIsPlaying(false);
+      });
+    };
+
+    void startPlayback().catch((error) => {
+      console.error('Discora playback preparation failed', {
         error,
         selectedTrack,
       });
       setIsPlaying(false);
     });
+
+    return () => {
+      active = false;
+    };
   }, [isPlaying, selectedTrack]);
 
   const togglePlayback = useCallback(() => {

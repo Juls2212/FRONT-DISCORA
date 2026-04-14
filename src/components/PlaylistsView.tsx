@@ -67,7 +67,7 @@ export function PlaylistsView({
   );
 
   const availableSongs = songs.filter(
-    (song) => !displayedPlaylistSongs.some((entry) => entry.song.id === song.id),
+    (song) => song.sourceType !== 'youtube' && !displayedPlaylistSongs.some((entry) => entry.song.id === song.id),
   );
 
   const selectedPlaylistSummary = selectedPlaylistId

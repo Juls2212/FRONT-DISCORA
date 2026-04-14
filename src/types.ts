@@ -9,6 +9,9 @@ export type Song = {
   cover: string;
   placeholderCover: string;
   isFavorite?: boolean;
+  sourceType?: 'backend' | 'youtube';
+  youtubePlaylistId?: string;
+  youtubeVideoId?: string;
 };
 
 export type Playlist = {

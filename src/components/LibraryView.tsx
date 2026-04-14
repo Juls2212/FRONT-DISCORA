@@ -11,9 +11,12 @@ import { StateMessage } from './StateMessage';
 type LibraryViewProps = SongPresentationState & {
   onAssignEmbeddedCover: (songId: Song['id'], coverDataUrl: string) => void;
   onAssignManualCover: (songId: Song['id'], coverDataUrl: string) => void;
+  onImportYouTubePlaylist: (playlistUrl: string) => Promise<number>;
   onPlayTrack: (song: Song, context: PlaybackContext, queue?: Song[]) => void;
+  onRemoveYouTubeSong: (songId: Song['id']) => void;
   onSongsReload: (songs: Song[]) => void;
   onToggleFavorite: (songId: Song['id']) => void;
+  youtubeSongs: Song[];
 };
 
 type UploadStatus = 'error' | 'idle' | 'success' | 'uploading';
@@ -25,9 +28,12 @@ export function LibraryView({
   manualCoverBySongId,
   onAssignEmbeddedCover,
   onAssignManualCover,
+  onImportYouTubePlaylist,
   onPlayTrack,
+  onRemoveYouTubeSong,
   onSongsReload,
   onToggleFavorite,
+  youtubeSongs,
 }: LibraryViewProps) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,6 +44,11 @@ export function LibraryView({
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const [activeFilter, setActiveFilter] = useState<LibraryFilter>('all');
   const [uploadMessage, setUploadMessage] = useState('Selecciona un archivo MP3 para importarlo a tu biblioteca.');
+  const [youtubePlaylistUrl, setYoutubePlaylistUrl] = useState('');
+  const [youtubeImporting, setYoutubeImporting] = useState(false);
+  const [youtubeImportMessage, setYoutubeImportMessage] = useState(
+    'Pega un enlace de playlist de YouTube para importar sus canciones en Discora.',
+  );
   const [deletingId, setDeletingId] = useState<Song['id'] | null>(null);
   const [coverTargetSongId, setCoverTargetSongId] = useState<Song['id'] | null>(null);
   const [editingSongId, setEditingSongId] = useState<Song['id'] | null>(null);
@@ -56,7 +67,22 @@ export function LibraryView({
     [embeddedCoverBySongId, favoriteSongIds, manualCoverBySongId],
   );
 
-  const displayedSongs = useMemo(() => decorateSongs(songs, presentationState), [presentationState, songs]);
+  const mergedSongs = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return [...songs, ...youtubeSongs];
+    }
+
+    const query = searchTerm.trim().toLowerCase();
+    const filteredYoutubeSongs = youtubeSongs.filter(
+      (song) =>
+        song.title.toLowerCase().includes(query) ||
+        song.artist.toLowerCase().includes(query) ||
+        song.album.toLowerCase().includes(query),
+    );
+
+    return [...songs, ...filteredYoutubeSongs];
+  }, [searchTerm, songs, youtubeSongs]);
+  const displayedSongs = useMemo(() => decorateSongs(mergedSongs, presentationState), [mergedSongs, presentationState]);
   const filteredSongs = useMemo(() => {
     if (activeFilter === 'favorites') {
       return displayedSongs.filter((song) => song.isFavorite);
@@ -205,6 +231,13 @@ export function LibraryView({
   };
 
   const handleDeleteSong = async (songId: Song['id']) => {
+    const targetSong = displayedSongs.find((song) => song.id === songId);
+
+    if (targetSong?.sourceType === 'youtube') {
+      onRemoveYouTubeSong(songId);
+      return;
+    }
+
     setDeletingId(songId);
     setError(null);
 
@@ -215,6 +248,33 @@ export function LibraryView({
       setError('No se pudo eliminar la cancion.');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleImportYouTube = async () => {
+    const trimmedUrl = youtubePlaylistUrl.trim();
+
+    if (!trimmedUrl) {
+      setError('Pega un enlace valido de playlist de YouTube.');
+      return;
+    }
+
+    setYoutubeImporting(true);
+    setError(null);
+    setYoutubeImportMessage('Importando playlist desde YouTube...');
+
+    try {
+      const importedCount = await onImportYouTubePlaylist(trimmedUrl);
+      setYoutubeImportMessage(
+        importedCount > 0
+          ? `Playlist importada correctamente: ${importedCount} canciones agregadas.`
+          : 'La playlist ya estaba importada en Discora.',
+      );
+      setYoutubePlaylistUrl('');
+    } catch {
+      setYoutubeImportMessage('No se pudo importar la playlist de YouTube desde las instancias publicas.');
+    } finally {
+      setYoutubeImporting(false);
     }
   };
 
@@ -360,6 +420,32 @@ export function LibraryView({
               ) : null}
             </div>
           </div>
+          <div className="library-import-panel">
+            <div className="library-import-status">
+              <p className="library-import-label">Importador YouTube</p>
+              <h3>{youtubeImporting ? 'Importando playlist' : 'Playlist de YouTube'}</h3>
+              <p>{youtubeImportMessage}</p>
+            </div>
+            <label className="library-search">
+              <span>Enlace de playlist</span>
+              <input
+                type="url"
+                value={youtubePlaylistUrl}
+                onChange={(event) => setYoutubePlaylistUrl(event.target.value)}
+                placeholder="https://www.youtube.com/playlist?list=..."
+              />
+            </label>
+            <div className="library-import-actions">
+              <button
+                className="library-primary-button"
+                type="button"
+                onClick={handleImportYouTube}
+                disabled={youtubeImporting || !youtubePlaylistUrl.trim()}
+              >
+                {youtubeImporting ? 'Importando...' : 'Importar playlist'}
+              </button>
+            </div>
+          </div>
           <input
             ref={fileInputRef}
             className="library-file-input"
@@ -427,8 +513,8 @@ export function LibraryView({
                   <button
                     className="library-song-meta"
                     type="button"
-                    onClick={() => onPlayTrack(song, { type: 'library' }, displayedSongs)}
-                  >
+                  onClick={() => onPlayTrack(song, { type: 'library' }, displayedSongs)}
+                >
                     <div className="library-song-cover" style={getCoverSurfaceStyle(song.cover)} />
                     <div>
                       <h3>{song.title}</h3>
@@ -438,14 +524,16 @@ export function LibraryView({
                   <div className="library-song-actions">
                     <span>{song.duration}</span>
                     <FavoriteButton isActive={Boolean(song.isFavorite)} onClick={() => onToggleFavorite(song.id)} />
-                    <button
-                      className="library-secondary-button library-icon-button"
-                      type="button"
-                      onClick={() => handleStartRename(song)}
-                      aria-label={`Editar ${song.title}`}
-                    >
-                      <span aria-hidden="true">✎</span>
-                    </button>
+                    {song.sourceType !== 'youtube' ? (
+                      <button
+                        className="library-secondary-button library-icon-button"
+                        type="button"
+                        onClick={() => handleStartRename(song)}
+                        aria-label={`Editar ${song.title}`}
+                      >
+                        <span aria-hidden="true">✎</span>
+                      </button>
+                    ) : null}
                     <button
                       className="library-secondary-button"
                       type="button"
@@ -466,11 +554,15 @@ export function LibraryView({
                       onClick={() => handleDeleteSong(song.id)}
                       disabled={deletingId === song.id}
                     >
-                      {deletingId === song.id ? 'Eliminando...' : 'Eliminar'}
+                      {song.sourceType === 'youtube'
+                        ? 'Quitar'
+                        : deletingId === song.id
+                          ? 'Eliminando...'
+                          : 'Eliminar'}
                     </button>
                   </div>
                 </div>
-                {editingSongId === song.id ? (
+                {editingSongId === song.id && song.sourceType !== 'youtube' ? (
                   <div className="library-edit-panel">
                     <label className="library-search">
                       <span>Titulo</span>

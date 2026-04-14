@@ -92,6 +92,7 @@ function normalizeSong(item: unknown, index: number): Song {
     duration: formatDuration(record.duration ?? record.length),
     id: asId(record.id, index + 1),
     placeholderCover,
+    sourceType: 'backend',
     title: asString(record.title ?? record.name, `Cancion ${index + 1}`),
   };
 }
