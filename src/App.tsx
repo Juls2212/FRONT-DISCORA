@@ -43,6 +43,7 @@ function App() {
     canGoPrevious,
     closeFullPlayer,
     currentTime,
+    equalizer,
     isFullPlayerOpen,
     isPlaying,
     nextTrack,
@@ -51,10 +52,13 @@ function App() {
     playbackDuration,
     playTrack,
     previousTrack,
+    setEqualizer,
+    setVolume,
     seekTo,
     selectedTrack,
     syncLibrarySongs,
     togglePlayback,
+    volume,
   } = usePlayback();
 
   const [theme, setTheme] = useState<Theme>('dark');
@@ -279,13 +283,24 @@ function App() {
             />
           ) : (
             <MainContent
+              canGoNext={canGoNext}
+              canGoPrevious={canGoPrevious}
+              currentTime={currentTime}
+              equalizer={equalizer}
+              isPlaying={isPlaying}
+              onNext={nextTrack}
               onPlayTrack={playTrack}
-              playlists={playlists}
-              playlistsError={playlistsError}
-              playlistsLoading={playlistsLoading}
+              onEqualizerChange={setEqualizer}
+              onPrevious={previousTrack}
+              onSeek={seekTo}
+              onTogglePlayback={togglePlayback}
+              onVolumeChange={setVolume}
+              playbackContext={playbackContext}
+              playbackDuration={playbackDuration}
+              playlistsCount={playlists.length}
+              selectedTrack={displayedSelectedTrack}
               songs={displayedSongs}
-              songsError={songsError}
-              songsLoading={songsLoading}
+              volume={volume}
             />
           )}
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FavoriteButton } from './FavoriteButton';
 import { PlaybackContext, Song } from '../types';
+import { formatPlaybackTime, getArtworkBackground } from '../utils/playerPresentation';
 
 type FullPlayerProps = {
   currentTime: number;
@@ -24,18 +25,6 @@ type AmbientPalette = {
   glow: string;
   shadow: string;
 };
-
-function formatPlaybackTime(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) {
-    return '0:00';
-  }
-
-  const totalSeconds = Math.floor(value);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -144,24 +133,6 @@ function createFallbackPalette(seed: string): AmbientPalette {
     glow: `hsla(${(hue + 26) % 360} 34% 50% / 0.24)`,
     shadow: `hsla(${(hue + 320) % 360} 28% 18% / 0.48)`,
   };
-}
-
-function getArtworkBackground(cover: string | undefined): string {
-  if (!cover) {
-    return 'linear-gradient(145deg, #52627d 0%, #202739 100%)';
-  }
-
-  const normalized = cover.trim();
-
-  if (
-    normalized.startsWith('linear-gradient') ||
-    normalized.startsWith('radial-gradient') ||
-    normalized.startsWith('conic-gradient')
-  ) {
-    return normalized;
-  }
-
-  return `url("${normalized}") center / cover no-repeat`;
 }
 
 function extractGradientPalette(cover: string): AmbientPalette | null {

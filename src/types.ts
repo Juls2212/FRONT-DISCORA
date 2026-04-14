@@ -46,6 +46,12 @@ export type PlaybackContext =
       type: 'playlist';
     };
 
+export type EqualizerState = {
+  bass: number;
+  mid: number;
+  treble: number;
+};
+
 export type SongPresentationState = {
   embeddedCoverBySongId: Record<string, string>;
   favoriteSongIds: string[];

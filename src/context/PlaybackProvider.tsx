@@ -8,23 +8,27 @@ import {
   useRef,
   useState,
 } from 'react';
-import { PlaybackContext, Song } from '../types';
+import { EqualizerState, PlaybackContext, Song } from '../types';
 
 type PlaybackStore = {
   canGoNext: boolean;
   canGoPrevious: boolean;
   currentTime: number;
+  equalizer: EqualizerState;
   isFullPlayerOpen: boolean;
   isPlaying: boolean;
   playbackContext: PlaybackContext | null;
   playbackDuration: number;
   playbackQueue: Song[];
   selectedTrack: Song | null;
+  volume: number;
   closeFullPlayer: () => void;
   nextTrack: () => void;
   openFullPlayer: () => void;
   playTrack: (song: Song, context: PlaybackContext, queue?: Song[]) => void;
   previousTrack: () => void;
+  setEqualizer: (equalizer: EqualizerState) => void;
+  setVolume: (volume: number) => void;
   seekTo: (time: number) => void;
   syncLibrarySongs: (songs: Song[]) => void;
   togglePlayback: () => void;
@@ -34,6 +38,12 @@ const PlaybackStoreContext = createContext<PlaybackStore | null>(null);
 
 export function PlaybackProvider({ children }: PropsWithChildren) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const bassFilterRef = useRef<BiquadFilterNode | null>(null);
+  const midFilterRef = useRef<BiquadFilterNode | null>(null);
+  const trebleFilterRef = useRef<BiquadFilterNode | null>(null);
   const selectedTrackRef = useRef<Song | null>(null);
   const playbackQueueRef = useRef<Song[]>([]);
   const playbackContextRef = useRef<PlaybackContext | null>(null);
@@ -45,6 +55,12 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   const [playbackContext, setPlaybackContext] = useState<PlaybackContext | null>(null);
   const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);
   const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
+  const [volume, setVolumeState] = useState(0.72);
+  const [equalizer, setEqualizerState] = useState<EqualizerState>({
+    bass: 62,
+    mid: 48,
+    treble: 57,
+  });
 
   const currentTrackIndex = useMemo(() => {
     if (!selectedTrack) {
@@ -72,6 +88,52 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
+    audio.crossOrigin = 'anonymous';
+
+    try {
+      const audioWindow = window as Window &
+        typeof globalThis & {
+          webkitAudioContext?: typeof AudioContext;
+        };
+      const AudioContextClass = audioWindow.AudioContext ?? audioWindow.webkitAudioContext;
+
+      if (AudioContextClass) {
+        const audioContext = new AudioContextClass();
+        const mediaSource = audioContext.createMediaElementSource(audio);
+        const bassFilter = audioContext.createBiquadFilter();
+        const midFilter = audioContext.createBiquadFilter();
+        const trebleFilter = audioContext.createBiquadFilter();
+        const gainNode = audioContext.createGain();
+
+        bassFilter.type = 'lowshelf';
+        bassFilter.frequency.value = 200;
+
+        midFilter.type = 'peaking';
+        midFilter.frequency.value = 1000;
+        midFilter.Q.value = 1;
+
+        trebleFilter.type = 'highshelf';
+        trebleFilter.frequency.value = 3000;
+
+        mediaSource.connect(bassFilter);
+        bassFilter.connect(midFilter);
+        midFilter.connect(trebleFilter);
+        trebleFilter.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        audioContextRef.current = audioContext;
+        mediaSourceRef.current = mediaSource;
+        gainNodeRef.current = gainNode;
+        bassFilterRef.current = bassFilter;
+        midFilterRef.current = midFilter;
+        trebleFilterRef.current = trebleFilter;
+      } else {
+        audio.volume = volume;
+      }
+    } catch (error) {
+      console.error('Discora audio chain setup failed', error);
+      audio.volume = volume;
+    }
 
     const handleEnded = () => {
       const currentSong = selectedTrackRef.current;
@@ -130,6 +192,12 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
 
     return () => {
       audio.pause();
+      gainNodeRef.current?.disconnect();
+      trebleFilterRef.current?.disconnect();
+      midFilterRef.current?.disconnect();
+      bassFilterRef.current?.disconnect();
+      mediaSourceRef.current?.disconnect();
+      void audioContextRef.current?.close();
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('play', handlePlay);
@@ -139,6 +207,37 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       audio.removeEventListener('durationchange', handleLoadedMetadata);
     };
   }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+
+    if (!audio) {
+      return;
+    }
+
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = volume;
+      return;
+    }
+
+    audio.volume = volume;
+  }, [volume]);
+
+  useEffect(() => {
+    const mapBandValue = (value: number) => ((value - 50) / 50) * 12;
+
+    if (bassFilterRef.current) {
+      bassFilterRef.current.gain.value = mapBandValue(equalizer.bass);
+    }
+
+    if (midFilterRef.current) {
+      midFilterRef.current.gain.value = mapBandValue(equalizer.mid);
+    }
+
+    if (trebleFilterRef.current) {
+      trebleFilterRef.current.gain.value = mapBandValue(equalizer.treble);
+    }
+  }, [equalizer]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -186,6 +285,10 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
     }
 
     if (audio.paused) {
+      if (audioContextRef.current?.state === 'suspended') {
+        void audioContextRef.current.resume();
+      }
+
       void audio.play().catch((error) => {
         console.error('Discora playback resume failed', {
           audioUrl: selectedTrack.audioUrl,
@@ -200,6 +303,10 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   }, [selectedTrack]);
 
   const playTrack = useCallback((song: Song, context: PlaybackContext, queue?: Song[]) => {
+    if (audioContextRef.current?.state === 'suspended') {
+      void audioContextRef.current.resume();
+    }
+
     setSelectedTrack(song);
     setPlaybackContext(context);
     setPlaybackQueue(queue?.length ? queue : [song]);
@@ -217,6 +324,19 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
 
     audio.currentTime = time;
     setCurrentTime(time);
+  }, []);
+
+  const setVolume = useCallback((nextVolume: number) => {
+    const normalizedVolume = Math.min(1, Math.max(0, nextVolume));
+    setVolumeState(normalizedVolume);
+  }, []);
+
+  const setEqualizer = useCallback((nextEqualizer: EqualizerState) => {
+    setEqualizerState({
+      bass: Math.min(100, Math.max(0, nextEqualizer.bass)),
+      mid: Math.min(100, Math.max(0, nextEqualizer.mid)),
+      treble: Math.min(100, Math.max(0, nextEqualizer.treble)),
+    });
   }, []);
 
   const previousTrack = useCallback(() => {
@@ -283,6 +403,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       canGoPrevious,
       closeFullPlayer: () => setIsFullPlayerOpen(false),
       currentTime,
+      equalizer,
       isFullPlayerOpen,
       isPlaying,
       nextTrack,
@@ -292,15 +413,19 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       playbackQueue,
       playTrack,
       previousTrack,
+      setEqualizer,
+      setVolume,
       seekTo,
       selectedTrack,
       syncLibrarySongs,
       togglePlayback,
+      volume,
     }),
     [
       canGoNext,
       canGoPrevious,
       currentTime,
+      equalizer,
       isFullPlayerOpen,
       isPlaying,
       nextTrack,
@@ -309,10 +434,13 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       playbackQueue,
       playTrack,
       previousTrack,
+      setEqualizer,
+      setVolume,
       seekTo,
       selectedTrack,
       syncLibrarySongs,
       togglePlayback,
+      volume,
     ],
   );
 
