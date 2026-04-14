@@ -277,8 +277,8 @@ export function PlaylistsView({
 
   if (selectedPlaylistId) {
     return (
-      <main className="main-content">
-        <section className="hero-card playlists-hero">
+      <main className="main-content playlists-view playlists-detail-view">
+        <section className="hero-card playlists-hero playlists-space-hero">
           <div className="hero-atmosphere hero-atmosphere-left" />
           <div className="hero-atmosphere hero-atmosphere-right" />
           <div className="playlist-detail-hero">
@@ -311,6 +311,8 @@ export function PlaylistsView({
         <SectionContainer
           title={playlistDetail?.name ?? selectedPlaylistSummary?.name ?? 'Detalle de playlist'}
           subtitle={playlistDetail ? `${playlistDetail.songCount} canciones` : 'Cargando canciones'}
+          label="Espacio de escucha"
+          className="playlist-detail-section"
         >
           {detailLoading ? (
             <StateMessage
@@ -422,10 +424,13 @@ export function PlaylistsView({
                       </button>
                       <div className="playlist-detail-actions">
                         <span className="playlist-drag-indicator" aria-hidden="true">
-                          ≡
+                          ::
                         </span>
                         <span>{entry.song.duration}</span>
-                        <FavoriteButton isActive={Boolean(entry.song.isFavorite)} onClick={() => onToggleFavorite(entry.song.id)} />
+                        <FavoriteButton
+                          isActive={Boolean(entry.song.isFavorite)}
+                          onClick={() => onToggleFavorite(entry.song.id)}
+                        />
                         <button
                           className="library-secondary-button"
                           type="button"
@@ -442,7 +447,7 @@ export function PlaylistsView({
                           }}
                           aria-label={`Reproducir ${entry.song.title}`}
                         >
-                          ▶
+                          {'>'}
                         </button>
                         <button
                           className="library-danger-button playlist-remove-button"
@@ -451,7 +456,7 @@ export function PlaylistsView({
                           disabled={removingNodeId === entry.nodeId}
                           aria-label={`Quitar ${entry.song.title}`}
                         >
-                          {removingNodeId === entry.nodeId ? '...' : '×'}
+                          {removingNodeId === entry.nodeId ? '...' : 'x'}
                         </button>
                       </div>
                     </article>
@@ -466,8 +471,8 @@ export function PlaylistsView({
   }
 
   return (
-    <main className="main-content">
-      <section className="hero-card playlists-hero">
+    <main className="main-content playlists-view playlists-overview-view">
+      <section className="hero-card playlists-hero playlists-overview-hero">
         <div className="hero-atmosphere hero-atmosphere-left" />
         <div className="hero-atmosphere hero-atmosphere-right" />
         <div className="hero-copy-block">
@@ -495,7 +500,12 @@ export function PlaylistsView({
 
       {actionMessage ? <p className="playlist-feedback">{actionMessage}</p> : null}
 
-      <SectionContainer title="Todas las playlists" subtitle={`${playlists.length} disponibles`}>
+      <SectionContainer
+        title="Todas las playlists"
+        subtitle={`${playlists.length} disponibles`}
+        label="Coleccion"
+        className="playlists-overview-section"
+      >
         {playlistsLoading ? (
           <StateMessage
             title="Cargando playlists"
@@ -512,7 +522,7 @@ export function PlaylistsView({
           />
         ) : null}
         {!playlistsLoading && !playlistsError && playlists.length > 0 ? (
-          <div className="playlist-grid">
+          <div className="playlist-grid playlists-overview-grid">
             {playlists.map((playlist) => (
               <PlaylistCard key={playlist.id} playlist={playlist} onClick={() => handleOpenPlaylist(playlist.id)} />
             ))}

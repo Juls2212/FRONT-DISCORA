@@ -13,6 +13,7 @@ export function PlaylistCard({ isActive = false, onClick, playlist }: PlaylistCa
         <div className="playlist-ring" />
       </div>
       <div className="playlist-card-copy">
+        <span className="playlist-card-meta">Playlist viva</span>
         <h3>{playlist.name}</h3>
         <p>{playlist.detail}</p>
         <span>{playlist.songCount} canciones</span>

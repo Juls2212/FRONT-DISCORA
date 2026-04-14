@@ -25,18 +25,35 @@ export function MainContent({
   songsError,
   songsLoading,
 }: MainContentProps) {
+  const featuredPlaylists = playlists.slice(0, 4);
+  const recentSongs = songs.slice(0, 6);
+
   return (
-    <main className="main-content">
-      <section className="hero-card">
+    <main className="main-content home-view">
+      <section className="hero-card home-hero">
         <div className="hero-atmosphere hero-atmosphere-left" />
         <div className="hero-atmosphere hero-atmosphere-right" />
-        <div className="hero-copy-block">
-          <p className="eyebrow">Inicio</p>
-          <h1>Bienvenido a Discora</h1>
-          <p className="hero-copy">
-            Un espacio editorial para descubrir musica entre sombras suaves, texturas profundas y
-            detalles inspirados por la cultura del vinilo.
-          </p>
+        <div className="home-hero-layout">
+          <div className="hero-copy-block home-hero-copy">
+            <p className="eyebrow">Inicio</p>
+            <h1>Bienvenido a Discora</h1>
+            <p className="hero-copy">
+              Un espacio editorial para descubrir musica entre sombras suaves, texturas profundas y
+              detalles inspirados por la cultura del vinilo.
+            </p>
+          </div>
+          <div className="home-curation-strip" aria-label="Resumen editorial">
+            <article className="home-curation-card">
+              <span>Seleccion viva</span>
+              <strong>{songsLoading ? '...' : `${songs.length} temas`}</strong>
+              <p>Descubrimiento continuo desde tu catalogo conectado.</p>
+            </article>
+            <article className="home-curation-card">
+              <span>Rutas de escucha</span>
+              <strong>{playlistsLoading ? '...' : `${playlists.length} playlists`}</strong>
+              <p>Entradas curadas para volver a un ambiente especifico.</p>
+            </article>
+          </div>
         </div>
         <FeaturedPanel
           eyebrow={featuredMoment.eyebrow}
@@ -47,7 +64,12 @@ export function MainContent({
         />
       </section>
 
-      <SectionContainer title="Playlists destacadas" subtitle="Seleccion para esta noche">
+      <SectionContainer
+        title="Playlists destacadas"
+        subtitle="Seleccion para esta noche"
+        label="Descubrimiento"
+        className="home-section home-section-featured"
+      >
         {playlistsLoading ? (
           <StateMessage
             title="Cargando playlists"
@@ -64,15 +86,20 @@ export function MainContent({
           />
         ) : null}
         {!playlistsLoading && !playlistsError && playlists.length > 0 ? (
-          <div className="playlist-grid">
-            {playlists.map((playlist) => (
+          <div className="playlist-grid home-playlist-grid">
+            {featuredPlaylists.map((playlist) => (
               <PlaylistCard key={playlist.id} playlist={playlist} />
             ))}
           </div>
         ) : null}
       </SectionContainer>
 
-      <SectionContainer title="Escuchado recientemente" subtitle="Vuelve a entrar en ambiente">
+      <SectionContainer
+        title="Escuchado recientemente"
+        subtitle="Vuelve a entrar en ambiente"
+        label="Retorno"
+        className="home-section home-section-recent"
+      >
         {songsLoading ? (
           <StateMessage
             title="Cargando canciones"
@@ -90,7 +117,7 @@ export function MainContent({
         ) : null}
         {!songsLoading && !songsError && songs.length > 0 ? (
           <div className="recent-songs-list">
-            {songs.map((song) => (
+            {recentSongs.map((song) => (
               <RecentSongItem
                 key={song.id}
                 song={song}

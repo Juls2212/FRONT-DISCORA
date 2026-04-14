@@ -17,6 +17,7 @@ type LibraryViewProps = SongPresentationState & {
 };
 
 type UploadStatus = 'error' | 'idle' | 'success' | 'uploading';
+type LibraryFilter = 'all' | 'favorites' | 'with-cover';
 
 export function LibraryView({
   embeddedCoverBySongId,
@@ -35,6 +36,7 @@ export function LibraryView({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedEmbeddedCover, setSelectedEmbeddedCover] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
+  const [activeFilter, setActiveFilter] = useState<LibraryFilter>('all');
   const [uploadMessage, setUploadMessage] = useState('Selecciona un archivo MP3 para importarlo a tu biblioteca.');
   const [deletingId, setDeletingId] = useState<Song['id'] | null>(null);
   const [coverTargetSongId, setCoverTargetSongId] = useState<Song['id'] | null>(null);
@@ -51,6 +53,17 @@ export function LibraryView({
   );
 
   const displayedSongs = useMemo(() => decorateSongs(songs, presentationState), [presentationState, songs]);
+  const filteredSongs = useMemo(() => {
+    if (activeFilter === 'favorites') {
+      return displayedSongs.filter((song) => song.isFavorite);
+    }
+
+    if (activeFilter === 'with-cover') {
+      return displayedSongs.filter((song) => song.cover !== song.placeholderCover);
+    }
+
+    return displayedSongs;
+  }, [activeFilter, displayedSongs]);
 
   const loadSongs = async () => {
     setLoading(true);
@@ -228,16 +241,30 @@ export function LibraryView({
   };
 
   return (
-    <main className="main-content">
+    <main className="main-content library-view">
       <section className="hero-card library-hero">
         <div className="hero-atmosphere hero-atmosphere-left" />
         <div className="hero-atmosphere hero-atmosphere-right" />
-        <div className="hero-copy-block">
-          <p className="eyebrow">Biblioteca</p>
-          <h1>Tu coleccion sonora</h1>
-          <p className="hero-copy">
-            Busca canciones, importa archivos MP3 y administra tu biblioteca desde un solo lugar.
-          </p>
+        <div className="library-hero-layout">
+          <div className="hero-copy-block">
+            <p className="eyebrow">Biblioteca</p>
+            <h1>Tu coleccion sonora</h1>
+            <p className="hero-copy">
+              Busca canciones, importa archivos MP3 y administra tu biblioteca desde un solo lugar.
+            </p>
+          </div>
+          <div className="library-summary-grid" aria-label="Resumen de biblioteca">
+            <article className="library-summary-card">
+              <span>Total</span>
+              <strong>{displayedSongs.length}</strong>
+              <p>Canciones visibles en tu catalogo conectado.</p>
+            </article>
+            <article className="library-summary-card">
+              <span>Favoritas</span>
+              <strong>{displayedSongs.filter((song) => song.isFavorite).length}</strong>
+              <p>Temas marcados para volver rapido a ellos.</p>
+            </article>
+          </div>
         </div>
         <div className="library-actions">
           <label className="library-search library-search-wide">
@@ -307,7 +334,35 @@ export function LibraryView({
         </div>
       </section>
 
-      <SectionContainer title="Todas las canciones" subtitle={`${displayedSongs.length} resultados`}>
+      <SectionContainer
+        title="Todas las canciones"
+        subtitle={`${filteredSongs.length} resultados`}
+        label="Biblioteca"
+        className="library-section"
+      >
+        <div className="library-filter-bar" role="toolbar" aria-label="Filtros de biblioteca">
+          <button
+            className={`library-filter-chip${activeFilter === 'all' ? ' library-filter-chip-active' : ''}`}
+            type="button"
+            onClick={() => setActiveFilter('all')}
+          >
+            Todas
+          </button>
+          <button
+            className={`library-filter-chip${activeFilter === 'favorites' ? ' library-filter-chip-active' : ''}`}
+            type="button"
+            onClick={() => setActiveFilter('favorites')}
+          >
+            Favoritas
+          </button>
+          <button
+            className={`library-filter-chip${activeFilter === 'with-cover' ? ' library-filter-chip-active' : ''}`}
+            type="button"
+            onClick={() => setActiveFilter('with-cover')}
+          >
+            Con portada
+          </button>
+        </div>
         {loading ? (
           <StateMessage
             title="Cargando biblioteca"
@@ -315,15 +370,15 @@ export function LibraryView({
           />
         ) : null}
         {!loading && error ? <StateMessage title="No fue posible cargar la biblioteca" description={error} /> : null}
-        {!loading && !error && displayedSongs.length === 0 ? (
+        {!loading && !error && filteredSongs.length === 0 ? (
           <StateMessage
             title="No se encontraron canciones"
             description="Prueba otra busqueda o importa un archivo MP3 para comenzar."
           />
         ) : null}
-        {!loading && !error && displayedSongs.length > 0 ? (
+        {!loading && !error && filteredSongs.length > 0 ? (
           <div className="library-song-list">
-            {displayedSongs.map((song) => (
+            {filteredSongs.map((song) => (
               <article key={song.id} className="library-song-row">
                 <button
                   className="library-song-meta"
