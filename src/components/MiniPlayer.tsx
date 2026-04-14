@@ -7,6 +7,7 @@ type MiniPlayerProps = {
   onOpenFullPlayer: () => void;
   onSeek: (time: number) => void;
   onTogglePlayback: () => void;
+  playbackError: string | null;
   playbackContext: PlaybackContext | null;
   playbackDuration: number;
   selectedTrack: Song | null;
@@ -30,6 +31,7 @@ export function MiniPlayer({
   onOpenFullPlayer,
   onSeek,
   onTogglePlayback,
+  playbackError,
   playbackContext,
   playbackDuration,
   selectedTrack,
@@ -92,7 +94,7 @@ export function MiniPlayer({
         <span className="mini-player-context">
           {playbackContext?.type === 'playlist' ? 'Contexto de playlist activo' : 'Biblioteca activa'}
         </span>
-        <p>{selectedTrack ? selectedTrack.artist : 'Selecciona una cancion para comenzar'}</p>
+        <p>{playbackError ?? (selectedTrack ? selectedTrack.artist : 'Selecciona una cancion para comenzar')}</p>
       </div>
     </footer>
   );

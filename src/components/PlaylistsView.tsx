@@ -16,26 +16,36 @@ import { SectionContainer } from './SectionContainer';
 import { StateMessage } from './StateMessage';
 
 type PlaylistsViewProps = SongPresentationState & {
+  onFrontendPlaylistDetailChange: (detail: PlaylistDetail) => void;
+  onRequestHandled: () => void;
   playlists: Playlist[];
   playlistsError: string | null;
   playlistsLoading: boolean;
+  requestedPlaylistId: Playlist['id'] | null;
   songs: Song[];
   onRefreshPlaylists: () => Promise<void>;
   onPlayTrack: (song: Song, context: PlaybackContext, queue?: Song[]) => void;
+  onResolveFrontendPlaylistDetail: (playlistId: Playlist['id'], baseDetail: PlaylistDetail) => PlaylistDetail;
   onToggleFavorite: (songId: Song['id']) => void;
+  unavailableSongIds: string[];
 };
 
 export function PlaylistsView({
   embeddedCoverBySongId,
   favoriteSongIds,
   manualCoverBySongId,
+  onFrontendPlaylistDetailChange,
+  onRequestHandled,
   playlists,
   playlistsError,
   playlistsLoading,
+  requestedPlaylistId,
   songs,
   onRefreshPlaylists,
   onPlayTrack,
+  onResolveFrontendPlaylistDetail,
   onToggleFavorite,
+  unavailableSongIds,
 }: PlaylistsViewProps) {
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<Playlist['id'] | null>(null);
   const [playlistDetail, setPlaylistDetail] = useState<PlaylistDetail | null>(null);
@@ -67,12 +77,56 @@ export function PlaylistsView({
   );
 
   const availableSongs = songs.filter(
-    (song) => song.sourceType !== 'youtube' && !displayedPlaylistSongs.some((entry) => entry.song.id === song.id),
+    (song) => !displayedPlaylistSongs.some((entry) => String(entry.song.id) === String(song.id)),
   );
 
   const selectedPlaylistSummary = selectedPlaylistId
     ? playlists.find((playlist) => playlist.id === selectedPlaylistId) ?? null
     : null;
+
+  const isYoutubePlaylist = playlistDetail?.sourceType === 'youtube' || selectedPlaylistSummary?.sourceType === 'youtube';
+
+  const isLocalYoutubePlaylist = (playlist: Playlist): playlist is PlaylistDetail =>
+    playlist.sourceType === 'youtube' && 'songs' in playlist && 'currentNodeId' in playlist;
+
+  const isFrontendNode = (nodeId: Playlist['id']) => String(nodeId).startsWith('front:');
+
+  const relinkEntries = (entries: PlaylistDetail['songs']): PlaylistDetail['songs'] =>
+    entries.map((entry, index) => ({
+      ...entry,
+      nextNodeId: index < entries.length - 1 ? entries[index + 1].nodeId : null,
+      prevNodeId: index > 0 ? entries[index - 1].nodeId : null,
+    }));
+
+  const hasFrontendNodes = (detail: PlaylistDetail | null) =>
+    Boolean(detail?.songs.some((entry) => isFrontendNode(entry.nodeId)));
+
+  const moveEntryByNodeId = (
+    entries: PlaylistDetail['songs'],
+    sourceNodeId: Playlist['id'],
+    targetNodeId: Playlist['id'],
+  ) => {
+    const sourceIndex = entries.findIndex((entry) => String(entry.nodeId) === String(sourceNodeId));
+    const targetIndex = entries.findIndex((entry) => String(entry.nodeId) === String(targetNodeId));
+
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+      return null;
+    }
+
+    const sourceEntry = entries[sourceIndex];
+    const nextEntries = entries.filter((entry) => String(entry.nodeId) !== String(sourceNodeId));
+    const insertAt = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+
+    return {
+      nextEntries: relinkEntries([
+        ...nextEntries.slice(0, insertAt),
+        sourceEntry,
+        ...nextEntries.slice(insertAt),
+      ]),
+      sourceIndex,
+      targetIndex,
+    };
+  };
 
   const getPlaylistPlaybackContext = (): PlaybackContext | null => {
     if (!playlistDetail) {
@@ -91,8 +145,17 @@ export function PlaylistsView({
     setDetailError(null);
 
     try {
+      const localPlaylist = playlists.find(
+        (playlist): playlist is PlaylistDetail => playlist.id === playlistId && isLocalYoutubePlaylist(playlist),
+      );
+
+      if (localPlaylist) {
+        setPlaylistDetail(localPlaylist);
+        return;
+      }
+
       const nextDetail = await getPlaylistById(playlistId);
-      setPlaylistDetail(nextDetail);
+      setPlaylistDetail(onResolveFrontendPlaylistDetail(playlistId, nextDetail));
     } catch {
       setDetailError('No se pudo abrir la playlist seleccionada.');
     } finally {
@@ -112,8 +175,44 @@ export function PlaylistsView({
       return;
     }
 
+    const playlistStillExists = playlists.some((playlist) => playlist.id === selectedPlaylistId);
+
+    if (!playlistStillExists) {
+      handleBackToPlaylists();
+    }
+  }, [playlists, selectedPlaylistId]);
+
+  useEffect(() => {
+    if (!selectedPlaylistId) {
+      return;
+    }
+
     void loadPlaylistDetail(selectedPlaylistId);
   }, [selectedPlaylistId]);
+
+  useEffect(() => {
+    if (!requestedPlaylistId) {
+      return;
+    }
+
+    setSelectedPlaylistId(requestedPlaylistId);
+    setPlaylistDetail(null);
+    setDetailError(null);
+    setSelectedSongId('');
+    onRequestHandled();
+  }, [onRequestHandled, requestedPlaylistId]);
+
+  useEffect(() => {
+    if (!selectedPlaylistId || !selectedPlaylistSummary) {
+      return;
+    }
+
+    if (isLocalYoutubePlaylist(selectedPlaylistSummary)) {
+      setPlaylistDetail(selectedPlaylistSummary);
+      setDetailError(null);
+      setDetailLoading(false);
+    }
+  }, [selectedPlaylistId, selectedPlaylistSummary]);
 
   const handleOpenPlaylist = (playlistId: Playlist['id']) => {
     setSelectedPlaylistId(playlistId);
@@ -178,12 +277,47 @@ export function PlaylistsView({
       return;
     }
 
+    const selectedSong = songs.find((song) => String(song.id) === selectedSongId);
+
+    if (!selectedSong) {
+      setActionMessage('No se encontro la cancion seleccionada.');
+      return;
+    }
+
     setAddingSong(true);
     setActionMessage(null);
 
     try {
+      if (selectedSong.sourceType === 'youtube') {
+        const nextSongs = relinkEntries([
+          ...playlistDetail.songs,
+          {
+            nextNodeId: null,
+            nodeId: `front:${String(playlistDetail.id)}:${String(selectedSong.id)}:${Date.now()}`,
+            prevNodeId: null,
+            song: selectedSong,
+          },
+        ]);
+
+        const nextDetail = {
+          ...playlistDetail,
+          coverUrl: playlistDetail.coverUrl ?? selectedSong.backendCoverUrl,
+          currentNodeId: playlistDetail.currentNodeId,
+          songCount: nextSongs.length,
+          songs: nextSongs,
+        };
+
+        setPlaylistDetail(nextDetail);
+        onFrontendPlaylistDetailChange(nextDetail);
+        setSelectedSongId('');
+        setActionMessage('Cancion agregada a la playlist.');
+        return;
+      }
+
       const nextDetail = await addSongToPlaylist(playlistDetail.id, { songId: selectedSongId });
-      setPlaylistDetail(nextDetail);
+      const resolvedDetail = onResolveFrontendPlaylistDetail(playlistDetail.id, nextDetail);
+      setPlaylistDetail(resolvedDetail);
+      onFrontendPlaylistDetailChange(resolvedDetail);
       await onRefreshPlaylists();
       setSelectedSongId('');
       setActionMessage('Cancion agregada a la playlist.');
@@ -203,8 +337,31 @@ export function PlaylistsView({
     setActionMessage(null);
 
     try {
+      if (String(nodeId).startsWith('front:')) {
+        const nextSongs = relinkEntries(
+          playlistDetail.songs.filter((entry) => String(entry.nodeId) !== String(nodeId)),
+        );
+
+        const nextDetail = {
+          ...playlistDetail,
+          currentNodeId:
+            playlistDetail.currentNodeId && String(playlistDetail.currentNodeId) === String(nodeId)
+              ? null
+              : playlistDetail.currentNodeId,
+          songCount: nextSongs.length,
+          songs: nextSongs,
+        };
+
+        setPlaylistDetail(nextDetail);
+        onFrontendPlaylistDetailChange(nextDetail);
+        setActionMessage('Cancion eliminada de la playlist.');
+        return;
+      }
+
       const nextDetail = await removeSongFromPlaylist(playlistDetail.id, nodeId);
-      setPlaylistDetail(nextDetail);
+      const resolvedDetail = onResolveFrontendPlaylistDetail(playlistDetail.id, nextDetail);
+      setPlaylistDetail(resolvedDetail);
+      onFrontendPlaylistDetailChange(resolvedDetail);
       await onRefreshPlaylists();
       setActionMessage('Cancion eliminada de la playlist.');
     } catch {
@@ -224,31 +381,15 @@ export function PlaylistsView({
     setDragOverNodeId(null);
   };
 
-  const reorderSongs = (nodeId: Playlist['id'], targetNodeId: Playlist['id']) => {
-    if (!playlistDetail || nodeId === targetNodeId) {
-      return null;
-    }
-
-    const sourceIndex = playlistDetail.songs.findIndex((entry) => entry.nodeId === nodeId);
-    const targetIndex = playlistDetail.songs.findIndex((entry) => entry.nodeId === targetNodeId);
-
-    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
-      return null;
-    }
-
-    const nextSongs = [...playlistDetail.songs];
-    const [movedEntry] = nextSongs.splice(sourceIndex, 1);
-    nextSongs.splice(targetIndex, 0, movedEntry);
-
-    return {
-      nextSongs,
-      sourceIndex,
-      targetIndex,
-    };
-  };
-
   const persistReorder = async (nodeId: Playlist['id'], sourceIndex: number, targetIndex: number) => {
     if (!playlistDetail || sourceIndex === targetIndex) {
+      return;
+    }
+
+    if (hasFrontendNodes(playlistDetail)) {
+      onFrontendPlaylistDetailChange(playlistDetail);
+      setActionMessage('Orden actualizado correctamente.');
+      handleDragEnd();
       return;
     }
 
@@ -302,6 +443,11 @@ export function PlaylistsView({
               <span className="playlist-detail-meta-line">
                 {playlistDetail?.songCount ?? selectedPlaylistSummary?.songCount ?? 0} canciones
               </span>
+              {playlistDetail?.sourceLabel ?? selectedPlaylistSummary?.sourceLabel ? (
+                <span className="playlist-detail-meta-line">
+                  Fuente: {playlistDetail?.sourceLabel ?? selectedPlaylistSummary?.sourceLabel}
+                </span>
+              ) : null}
             </div>
           </div>
         </section>
@@ -325,51 +471,65 @@ export function PlaylistsView({
           ) : null}
           {!detailLoading && !detailError && playlistDetail ? (
             <div className="playlist-detail-panel">
-              <div className="playlist-detail-toolbar">
-                <label className="library-search playlist-song-select">
-                  <span>Agregar cancion</span>
-                  <select value={selectedSongId} onChange={(event) => setSelectedSongId(event.target.value)}>
-                    <option value="">Selecciona una cancion de la biblioteca</option>
-                    {availableSongs.map((song) => (
-                      <option key={song.id} value={String(song.id)}>
-                        {song.title} - {song.artist}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="playlist-detail-toolbar-actions">
-                  <button className="library-primary-button" type="button" onClick={handleAddSong} disabled={addingSong}>
-                    {addingSong ? 'Agregando...' : 'Agregar a playlist'}
-                  </button>
-                  <button
-                    className="library-danger-button"
-                    type="button"
-                    onClick={() => handleDeletePlaylist(playlistDetail.id)}
-                    disabled={deletingPlaylistId === playlistDetail.id}
-                  >
-                    {deletingPlaylistId === playlistDetail.id ? 'Eliminando...' : 'Eliminar playlist'}
-                  </button>
+              {!isYoutubePlaylist ? (
+                <div className="playlist-detail-toolbar">
+                  <label className="library-search playlist-song-select">
+                    <span>Agregar cancion</span>
+                    <select value={selectedSongId} onChange={(event) => setSelectedSongId(event.target.value)}>
+                      <option value="">Selecciona una cancion de la biblioteca</option>
+                      {availableSongs.map((song) => (
+                        <option key={song.id} value={String(song.id)}>
+                          {song.title} - {song.artist}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="playlist-detail-toolbar-actions">
+                    <button className="library-primary-button" type="button" onClick={handleAddSong} disabled={addingSong}>
+                      {addingSong ? 'Agregando...' : 'Agregar a playlist'}
+                    </button>
+                    <button
+                      className="library-danger-button"
+                      type="button"
+                      onClick={() => handleDeletePlaylist(playlistDetail.id)}
+                      disabled={deletingPlaylistId === playlistDetail.id}
+                    >
+                      {deletingPlaylistId === playlistDetail.id ? 'Eliminando...' : 'Eliminar playlist'}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : null}
 
               {displayedPlaylistSongs.length === 0 ? (
                 <StateMessage
                   title="Esta playlist esta vacia"
-                  description="Agrega canciones desde la biblioteca para verla completa."
+                  description={
+                    isYoutubePlaylist
+                      ? 'Esta playlist importada desde YouTube no tiene canciones disponibles.'
+                      : 'Agrega canciones desde la biblioteca para verla completa.'
+                  }
                 />
               ) : (
                 <div className="playlist-detail-list">
                   {displayedPlaylistSongs.map((entry) => (
                     <article
                       key={entry.nodeId}
-                      className={`playlist-detail-row${playlistDetail.currentNodeId === entry.nodeId ? ' playlist-detail-row-current' : ''}${draggedNodeId === entry.nodeId ? ' playlist-detail-row-dragging' : ''}${dragOverNodeId === entry.nodeId && draggedNodeId !== entry.nodeId ? ' playlist-detail-row-drop-target' : ''}`}
-                      draggable={!persistingReorder}
+                      className={`playlist-detail-row${playlistDetail.currentNodeId === entry.nodeId ? ' playlist-detail-row-current' : ''}${draggedNodeId === entry.nodeId ? ' playlist-detail-row-dragging' : ''}${dragOverNodeId === entry.nodeId && draggedNodeId !== entry.nodeId ? ' playlist-detail-row-drop-target' : ''}${unavailableSongIds.includes(String(entry.song.id)) ? ' playlist-detail-row-unavailable' : ''}`}
+                      draggable={!persistingReorder && !isYoutubePlaylist}
                       onDragStart={(event) => {
+                        if (isYoutubePlaylist) {
+                          return;
+                        }
+
                         event.dataTransfer.effectAllowed = 'move';
                         event.dataTransfer.setData('text/plain', String(entry.nodeId));
                         handleDragStart(entry.nodeId);
                       }}
                       onDragOver={(event) => {
+                        if (isYoutubePlaylist) {
+                          return;
+                        }
+
                         event.preventDefault();
                         if (!persistingReorder && draggedNodeId && draggedNodeId !== entry.nodeId) {
                           event.dataTransfer.dropEffect = 'move';
@@ -377,13 +537,17 @@ export function PlaylistsView({
                         }
                       }}
                       onDrop={(event) => {
+                        if (isYoutubePlaylist) {
+                          return;
+                        }
+
                         event.preventDefault();
 
                         if (persistingReorder || !draggedNodeId || draggedNodeId === entry.nodeId || !playlistDetail) {
                           return;
                         }
 
-                        const result = reorderSongs(draggedNodeId, entry.nodeId);
+                        const result = moveEntryByNodeId(playlistDetail.songs, draggedNodeId, entry.nodeId);
 
                         if (!result) {
                           handleDragEnd();
@@ -392,7 +556,7 @@ export function PlaylistsView({
 
                         setPlaylistDetail({
                           ...playlistDetail,
-                          songs: result.nextSongs,
+                          songs: result.nextEntries,
                         });
                         void persistReorder(draggedNodeId, result.sourceIndex, result.targetIndex);
                       }}
@@ -420,12 +584,17 @@ export function PlaylistsView({
                           {playlistDetail.currentNodeId === entry.nodeId ? (
                             <span className="playlist-current-badge">Actual</span>
                           ) : null}
+                          {unavailableSongIds.includes(String(entry.song.id)) ? (
+                            <span className="playlist-current-badge playlist-current-badge-muted">No disponible</span>
+                          ) : null}
                         </div>
                       </button>
                       <div className="playlist-detail-actions">
-                        <span className="playlist-drag-indicator" aria-hidden="true">
-                          ::
-                        </span>
+                        {!isYoutubePlaylist ? (
+                          <span className="playlist-drag-indicator" aria-hidden="true">
+                            ::
+                          </span>
+                        ) : null}
                         <span>{entry.song.duration}</span>
                         <FavoriteButton
                           isActive={Boolean(entry.song.isFavorite)}
@@ -449,15 +618,17 @@ export function PlaylistsView({
                         >
                           {'>'}
                         </button>
-                        <button
-                          className="library-danger-button playlist-remove-button"
-                          type="button"
-                          onClick={() => handleRemoveSong(entry.nodeId)}
-                          disabled={removingNodeId === entry.nodeId}
-                          aria-label={`Quitar ${entry.song.title}`}
-                        >
-                          {removingNodeId === entry.nodeId ? '...' : 'x'}
-                        </button>
+                        {!isYoutubePlaylist ? (
+                          <button
+                            className="library-danger-button playlist-remove-button"
+                            type="button"
+                            onClick={() => handleRemoveSong(entry.nodeId)}
+                            disabled={removingNodeId === entry.nodeId}
+                            aria-label={`Quitar ${entry.song.title}`}
+                          >
+                            {removingNodeId === entry.nodeId ? '...' : 'x'}
+                          </button>
+                        ) : null}
                       </div>
                     </article>
                   ))}

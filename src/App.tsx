@@ -8,7 +8,7 @@ import { Sidebar } from './components/Sidebar';
 import { usePlayback } from './context/PlaybackProvider';
 import { getPlaylists, getSongs } from './services/discoraApi';
 import { importYouTubePlaylist } from './services/youtubeImport';
-import { Playlist, Song, SongPresentationState } from './types';
+import { FrontendPlaylistOverride, Playlist, PlaylistDetail, PlaylistSongEntry, Song, SongPresentationState } from './types';
 import { decorateSong, decorateSongs, getSongIdKey } from './utils/songPresentation';
 import { needsDurationResolution, resolveSongDuration } from './utils/audio';
 
@@ -20,6 +20,33 @@ const FAVORITES_STORAGE_KEY = 'discora-favorite-song-ids';
 const MANUAL_COVERS_STORAGE_KEY = 'discora-manual-cover-by-song-id';
 const EMBEDDED_COVERS_STORAGE_KEY = 'discora-embedded-cover-by-song-id';
 const YOUTUBE_IMPORTS_STORAGE_KEY = 'discora-youtube-imported-songs';
+const YOUTUBE_PLAYLISTS_STORAGE_KEY = 'discora-youtube-imported-playlists';
+const PLAYLIST_OVERRIDES_STORAGE_KEY = 'discora-frontend-playlist-overrides';
+
+function readStorageValue<T>(storageKey: string, fallback: T): T {
+  try {
+    const value = window.localStorage.getItem(storageKey);
+    return value ? (JSON.parse(value) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function buildPlaylistNodeId(playlistId: Playlist['id'], songId: Song['id'], index: number): string {
+  return `front:${String(playlistId)}:${String(songId)}:${index}`;
+}
+
+function isFrontendPlaylistNode(nodeId: PlaylistSongEntry['nodeId']): boolean {
+  return String(nodeId).startsWith('front:');
+}
+
+function relinkPlaylistEntries(entries: PlaylistSongEntry[]): PlaylistSongEntry[] {
+  return entries.map((entry, index) => ({
+    ...entry,
+    nextNodeId: index < entries.length - 1 ? entries[index + 1].nodeId : null,
+    prevNodeId: index > 0 ? entries[index - 1].nodeId : null,
+  }));
+}
 
 function readStorageRecord(storageKey: string): Record<string, string> {
   try {
@@ -50,6 +77,7 @@ function App() {
     isPlaying,
     nextTrack,
     openFullPlayer,
+    playbackError,
     playbackContext,
     playbackDuration,
     playTrack,
@@ -60,6 +88,7 @@ function App() {
     selectedTrack,
     syncLibrarySongs,
     togglePlayback,
+    unavailableSongIds,
     volume,
   } = usePlayback();
 
@@ -71,6 +100,7 @@ function App() {
   const [songsError, setSongsError] = useState<string | null>(null);
   const [playlistsError, setPlaylistsError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ViewName>('home');
+  const [requestedPlaylistId, setRequestedPlaylistId] = useState<Playlist['id'] | null>(null);
   const [favoriteSongIds, setFavoriteSongIds] = useState<string[]>(() => readStorageArray(FAVORITES_STORAGE_KEY));
   const [manualCoverBySongId, setManualCoverBySongId] = useState<Record<string, string>>(
     () => readStorageRecord(MANUAL_COVERS_STORAGE_KEY),
@@ -86,6 +116,12 @@ function App() {
       return [];
     }
   });
+  const [youtubePlaylists, setYoutubePlaylists] = useState<PlaylistDetail[]>(() => {
+    return readStorageValue<PlaylistDetail[]>(YOUTUBE_PLAYLISTS_STORAGE_KEY, []);
+  });
+  const [playlistOverrides, setPlaylistOverrides] = useState<FrontendPlaylistOverride[]>(() =>
+    readStorageValue<FrontendPlaylistOverride[]>(PLAYLIST_OVERRIDES_STORAGE_KEY, []),
+  );
 
   const presentationState = useMemo<SongPresentationState>(
     () => ({
@@ -97,6 +133,27 @@ function App() {
   );
 
   const mergedSongs = useMemo(() => [...songs, ...youtubeSongs], [songs, youtubeSongs]);
+  const mergedPlaylists = useMemo<Playlist[]>(() => {
+    const playlistOverridesMap = new Map(playlistOverrides.map((override) => [String(override.playlistId), override]));
+
+    const backendPlaylists = playlists.map((playlist) => {
+      const override = playlistOverridesMap.get(String(playlist.id));
+
+      if (!override) {
+        return playlist;
+      }
+
+      const coverUrl = override.songs.find((entry) => entry.song.backendCoverUrl)?.song.backendCoverUrl ?? playlist.coverUrl;
+
+      return {
+        ...playlist,
+        coverUrl,
+        songCount: override.songs.length,
+      };
+    });
+
+    return [...backendPlaylists, ...youtubePlaylists];
+  }, [playlistOverrides, playlists, youtubePlaylists]);
   const displayedSongs = useMemo(() => decorateSongs(mergedSongs, presentationState), [mergedSongs, presentationState]);
   const displayedSelectedTrack = useMemo(
     () => (selectedTrack ? decorateSong(selectedTrack, presentationState) : null),
@@ -118,6 +175,14 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(YOUTUBE_IMPORTS_STORAGE_KEY, JSON.stringify(youtubeSongs));
   }, [youtubeSongs]);
+
+  useEffect(() => {
+    window.localStorage.setItem(YOUTUBE_PLAYLISTS_STORAGE_KEY, JSON.stringify(youtubePlaylists));
+  }, [youtubePlaylists]);
+
+  useEffect(() => {
+    window.localStorage.setItem(PLAYLIST_OVERRIDES_STORAGE_KEY, JSON.stringify(playlistOverrides));
+  }, [playlistOverrides]);
 
   const loadSongs = async () => {
     setSongsLoading(true);
@@ -228,7 +293,11 @@ function App() {
   };
 
   const handleImportYouTubePlaylist = async (playlistUrl: string) => {
-    const importedSongs = await importYouTubePlaylist(playlistUrl);
+    const importedPlaylist = await importYouTubePlaylist(playlistUrl);
+    const importedSongs = importedPlaylist.songs;
+    const playlistAlreadyExists = youtubePlaylists.some(
+      (playlist) => String(playlist.id) === String(importedPlaylist.playlist.id),
+    );
 
     setYoutubeSongs((currentSongs) => {
       const existingIds = new Set(currentSongs.map((song) => String(song.id)));
@@ -236,11 +305,110 @@ function App() {
       return nextSongs.length ? [...currentSongs, ...nextSongs] : currentSongs;
     });
 
-    return importedSongs.length;
+    setYoutubePlaylists((currentPlaylists) => {
+      const nextPlaylists = currentPlaylists.filter(
+        (playlist) => String(playlist.id) !== String(importedPlaylist.playlist.id),
+      );
+
+      return [...nextPlaylists, importedPlaylist.playlist];
+    });
+
+    return {
+      importedCount: importedSongs.length,
+      isNewPlaylist: !playlistAlreadyExists,
+      playlistId: importedPlaylist.playlist.id,
+      playlistName: importedPlaylist.playlist.name,
+      provider: importedPlaylist.provider,
+    };
+  };
+
+  const handleOpenPlaylistFromImport = (playlistId: Playlist['id']) => {
+    setRequestedPlaylistId(playlistId);
+    setActiveView('playlists');
   };
 
   const handleRemoveYouTubeSong = (songId: Song['id']) => {
     setYoutubeSongs((currentSongs) => currentSongs.filter((song) => song.id !== songId));
+    setYoutubePlaylists((currentPlaylists) =>
+      currentPlaylists
+        .map((playlist) => {
+          const nextSongs = playlist.songs.filter((entry) => entry.song.id !== songId);
+
+          return {
+            ...playlist,
+            currentNodeId:
+              playlist.currentNodeId && !nextSongs.some((entry) => entry.nodeId === playlist.currentNodeId)
+                ? null
+                : playlist.currentNodeId,
+            songCount: nextSongs.length,
+            songs: nextSongs.map((entry, index, allSongs) => ({
+              ...entry,
+              nextNodeId: index < allSongs.length - 1 ? allSongs[index + 1].nodeId : null,
+              prevNodeId: index > 0 ? allSongs[index - 1].nodeId : null,
+            })),
+          };
+        })
+        .filter((playlist) => playlist.songs.length > 0),
+    );
+    setPlaylistOverrides((currentOverrides) =>
+      currentOverrides
+        .map((playlist) => {
+          const nextSongs = playlist.songs.filter((entry) => entry.song.id !== songId);
+          const normalizedSongs = relinkPlaylistEntries(nextSongs);
+
+          return {
+            ...playlist,
+            currentNodeId:
+              playlist.currentNodeId && !normalizedSongs.some((entry) => entry.nodeId === playlist.currentNodeId)
+                ? null
+                : playlist.currentNodeId,
+            songs: normalizedSongs,
+          };
+        })
+        .filter((playlist) => playlist.songs.length > 0),
+    );
+  };
+
+  const handleFrontendPlaylistDetailChange = (nextDetail: PlaylistDetail) => {
+    if (nextDetail.sourceType === 'youtube') {
+      setYoutubePlaylists((currentPlaylists) =>
+        currentPlaylists.map((playlist) => (String(playlist.id) === String(nextDetail.id) ? nextDetail : playlist)),
+      );
+      return;
+    }
+
+    setPlaylistOverrides((currentOverrides) => {
+      const nextOverride: FrontendPlaylistOverride = {
+        currentNodeId: nextDetail.currentNodeId,
+        playlistId: nextDetail.id,
+        songs: nextDetail.songs,
+      };
+      const nextOverrides = currentOverrides.filter((playlist) => String(playlist.playlistId) !== String(nextDetail.id));
+      return [...nextOverrides, nextOverride];
+    });
+  };
+
+  const handleResolveFrontendPlaylistDetail = (playlistId: Playlist['id'], baseDetail: PlaylistDetail) => {
+    const override = playlistOverrides.find((entry) => String(entry.playlistId) === String(playlistId));
+
+    if (!override) {
+      return baseDetail;
+    }
+
+    const localSongs = override.songs.filter((entry) => isFrontendPlaylistNode(entry.nodeId));
+    const mergedSongs = [...baseDetail.songs.map((entry) => entry.song), ...localSongs.map((entry) => entry.song)];
+    const normalizedSongs = relinkPlaylistEntries([...baseDetail.songs, ...localSongs]);
+
+    return {
+      ...baseDetail,
+      currentNodeId:
+        override.currentNodeId && normalizedSongs.some((entry) => entry.nodeId === override.currentNodeId)
+          ? override.currentNodeId
+          : baseDetail.currentNodeId,
+      coverUrl: mergedSongs.find((song) => song.backendCoverUrl)?.backendCoverUrl ?? baseDetail.coverUrl,
+      songCount: normalizedSongs.length,
+      songs: normalizedSongs,
+    };
   };
 
   const handleToggleFavorite = (songId: Song['id']) => {
@@ -281,9 +449,9 @@ function App() {
       <div className="app-layout">
         <Sidebar
           activeView={activeView}
-          playlists={playlists}
-          playlistsError={playlistsError}
-          playlistsLoading={playlistsLoading}
+          playlists={mergedPlaylists}
+          playlistsError={mergedPlaylists.length > 0 ? null : playlistsError}
+          playlistsLoading={playlistsLoading && youtubePlaylists.length === 0}
           theme={theme}
           onSelectView={setActiveView}
           onToggleTheme={handleToggleTheme}
@@ -297,10 +465,12 @@ function App() {
               onAssignEmbeddedCover={handleAssignEmbeddedCover}
               onAssignManualCover={handleAssignManualCover}
               onImportYouTubePlaylist={handleImportYouTubePlaylist}
+              onOpenImportedPlaylist={handleOpenPlaylistFromImport}
               onPlayTrack={playTrack}
               onRemoveYouTubeSong={handleRemoveYouTubeSong}
               onSongsReload={handleSongsReload}
               onToggleFavorite={handleToggleFavorite}
+              unavailableSongIds={unavailableSongIds}
               youtubeSongs={youtubeSongs}
             />
           ) : activeView === 'playlists' ? (
@@ -308,13 +478,18 @@ function App() {
               embeddedCoverBySongId={embeddedCoverBySongId}
               favoriteSongIds={favoriteSongIds}
               manualCoverBySongId={manualCoverBySongId}
-              playlists={playlists}
-              playlistsError={playlistsError}
-              playlistsLoading={playlistsLoading}
+              onFrontendPlaylistDetailChange={handleFrontendPlaylistDetailChange}
+              playlists={mergedPlaylists}
+              playlistsError={mergedPlaylists.length > 0 ? null : playlistsError}
+              playlistsLoading={playlistsLoading && youtubePlaylists.length === 0}
+              requestedPlaylistId={requestedPlaylistId}
               songs={displayedSongs}
               onPlayTrack={playTrack}
               onRefreshPlaylists={loadPlaylists}
+              onResolveFrontendPlaylistDetail={handleResolveFrontendPlaylistDetail}
+              onRequestHandled={() => setRequestedPlaylistId(null)}
               onToggleFavorite={handleToggleFavorite}
+              unavailableSongIds={unavailableSongIds}
             />
           ) : (
             <MainContent
@@ -346,6 +521,7 @@ function App() {
         onOpenFullPlayer={openFullPlayer}
         onSeek={seekTo}
         onTogglePlayback={togglePlayback}
+        playbackError={playbackError}
         playbackContext={playbackContext}
         playbackDuration={playbackDuration}
         selectedTrack={displayedSelectedTrack}
@@ -366,6 +542,7 @@ function App() {
           }
         }}
         onTogglePlayback={togglePlayback}
+        playbackError={playbackError}
         playbackContext={playbackContext}
         playbackDuration={playbackDuration}
         selectedTrack={displayedSelectedTrack}

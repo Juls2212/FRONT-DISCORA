@@ -1,5 +1,6 @@
-import { Song } from '../types';
+import { PlaylistDetail, PlaylistSongEntry, Song } from '../types';
 import { formatDurationFromSeconds } from '../utils/audio';
+import { createSongFallbackCover } from '../utils/songPresentation';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -8,6 +9,38 @@ type InvidiousPlaylistResponse = {
   videoCount?: number;
   videos?: unknown[];
 };
+
+export type ImportedYouTubePlaylist = {
+  playlist: PlaylistDetail;
+  songs: Song[];
+};
+
+export type ImportedYouTubePlaylistResult = ImportedYouTubePlaylist & {
+  isNewPlaylist: boolean;
+  provider: 'invidious' | 'piped';
+};
+
+export class YouTubeImportError extends Error {
+  code:
+    | 'empty'
+    | 'invalid_url'
+    | 'playlist_empty'
+    | 'playlist_private'
+    | 'providers_unavailable';
+
+  constructor(
+    code:
+      | 'empty'
+      | 'invalid_url'
+      | 'playlist_empty'
+      | 'playlist_private'
+      | 'providers_unavailable',
+    message: string,
+  ) {
+    super(message);
+    this.code = code;
+  }
+}
 
 const invidiousInstances = [
   'https://invidious.fdn.fr',
@@ -21,13 +54,6 @@ const pipedInstances = [
 ];
 
 const REQUEST_TIMEOUT_MS = 8000;
-
-const youtubeArtwork = [
-  'linear-gradient(145deg, #5b667e 0%, #202739 100%)',
-  'linear-gradient(145deg, #7f6a77 0%, #2d2330 100%)',
-  'linear-gradient(145deg, #65738c 0%, #1b2233 100%)',
-  'linear-gradient(145deg, #75695d 0%, #2c2722 100%)',
-];
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -52,6 +78,35 @@ function asNumber(value: unknown): number | null {
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function extractYouTubeVideoId(value: unknown): string | null {
+  const rawValue = asString(value);
+
+  if (!rawValue) {
+    return null;
+  }
+
+  if (/^[\w-]{6,}$/i.test(rawValue) && !rawValue.includes('/')) {
+    return rawValue;
+  }
+
+  const normalizedValue = rawValue.startsWith('/') ? `https://www.youtube.com${rawValue}` : rawValue;
+
+  try {
+    const url = new URL(normalizedValue);
+    const videoId = url.searchParams.get('v') || url.pathname.split('/').filter(Boolean).pop() || '';
+    return videoId.trim() || null;
+  } catch {
+    const watchMatch = rawValue.match(/[?&]v=([\w-]{6,})/i);
+
+    if (watchMatch) {
+      return watchMatch[1];
+    }
+
+    const pathMatch = rawValue.match(/\/([\w-]{6,})(?:[/?&#]|$)/);
+    return pathMatch?.[1] ?? null;
+  }
 }
 
 function parsePlaylistId(input: string): string | null {
@@ -94,6 +149,14 @@ async function requestJson<T>(url: string): Promise<T> {
     });
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new YouTubeImportError('playlist_private', 'Playlist is private or unavailable');
+      }
+
+      if (response.status === 404) {
+        throw new YouTubeImportError('playlist_empty', 'Playlist not found or empty');
+      }
+
       throw new Error(`Request failed with status ${response.status}`);
     }
 
@@ -106,8 +169,57 @@ async function requestJson<T>(url: string): Promise<T> {
 function getThumbnailUrl(record: UnknownRecord, videoId: string): string {
   const thumbnails = asArray<UnknownRecord>(record.videoThumbnails ?? record.thumbnail ?? record.thumbnails);
   const directThumbnail = thumbnails
-    .map((item) => asString(item.url))
-    .find((value) => value.length > 0);
+    .map((item) => {
+      const rawUrl = asString(item.url);
+      const width = asNumber(item.width) ?? 0;
+      const height = asNumber(item.height) ?? 0;
+      const quality = asString(item.quality ?? item.qualityLabel);
+
+      if (!rawUrl) {
+        return null;
+      }
+
+      if (rawUrl.startsWith('//')) {
+        return {
+          height,
+          quality,
+          url: `https:${rawUrl}`,
+          width,
+        };
+      }
+
+      if (rawUrl.startsWith('/')) {
+        return {
+          height,
+          quality,
+          url: `https://www.youtube.com${rawUrl}`,
+          width,
+        };
+      }
+
+      return {
+        height,
+        quality,
+        url: rawUrl,
+        width,
+      };
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        height: number;
+        quality: string;
+        url: string;
+        width: number;
+      } => item !== null && /^https?:\/\//i.test(item.url),
+    )
+    .sort((left, right) => {
+      const leftScore = left.width * left.height + (left.quality.toLowerCase().includes('max') ? 100000 : 0);
+      const rightScore = right.width * right.height + (right.quality.toLowerCase().includes('max') ? 100000 : 0);
+      return rightScore - leftScore;
+    })
+    .find((item) => item.url.length > 0)?.url;
 
   return directThumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 }
@@ -119,27 +231,43 @@ function normalizeImportedSong(
   playlistTitle: string,
 ): Song | null {
   const record = asRecord(item);
-  const videoId = asString(record.videoId ?? record.url?.toString().split('/').pop());
+  const videoId =
+    extractYouTubeVideoId(record.videoId) ??
+    extractYouTubeVideoId(record.id) ??
+    extractYouTubeVideoId(record.url) ??
+    extractYouTubeVideoId(record.videoUrl);
 
   if (!videoId) {
+    console.debug('Discora YouTube import skipped item without valid video id', {
+      index,
+      item,
+      playlistId,
+    });
     return null;
   }
 
   const durationInSeconds = asNumber(
     record.lengthSeconds ?? record.duration ?? record.durationSeconds ?? record.length,
   );
-  const placeholderCover = youtubeArtwork[index % youtubeArtwork.length];
   const thumbnail = getThumbnailUrl(record, videoId);
+  const fallbackCover = createSongFallbackCover({
+    album: playlistTitle || 'Importado desde YouTube',
+    artist: asString(record.author ?? record.uploaderName ?? record.artist) || 'Canal de YouTube',
+    id: `yt:${playlistId}:${videoId}`,
+    sourceType: 'youtube',
+    title: asString(record.title) || `Video ${index + 1}`,
+  });
+  const resolvedThumbnail = /^https?:\/\//i.test(thumbnail) ? thumbnail : '';
 
   return {
     album: playlistTitle || 'Importado desde YouTube',
     artist: asString(record.author ?? record.uploaderName ?? record.artist) || 'Canal de YouTube',
     audioUrl: videoId,
-    backendCoverUrl: thumbnail,
-    cover: thumbnail || placeholderCover,
+    backendCoverUrl: resolvedThumbnail || undefined,
+    cover: resolvedThumbnail || fallbackCover,
     duration: durationInSeconds ? formatDurationFromSeconds(durationInSeconds) : '--:--',
     id: `yt:${playlistId}:${videoId}`,
-    placeholderCover,
+    placeholderCover: fallbackCover,
     sourceType: 'youtube',
     title: asString(record.title) || `Video ${index + 1}`,
     youtubePlaylistId: playlistId,
@@ -190,6 +318,10 @@ async function fetchInvidiousPlaylist(playlistId: string): Promise<Song[]> {
       }
 
       if (collectedSongs.length) {
+        console.debug('Discora YouTube playlist normalized from Invidious', {
+          playlistId,
+          songCount: collectedSongs.length,
+        });
         return collectedSongs;
       }
     } catch (error) {
@@ -213,6 +345,10 @@ async function fetchPipedPlaylist(playlistId: string): Promise<Song[]> {
         .filter((song): song is Song => Boolean(song));
 
       if (songs.length) {
+        console.debug('Discora YouTube playlist normalized from Piped', {
+          playlistId,
+          songCount: songs.length,
+        });
         return songs;
       }
     } catch (error) {
@@ -221,6 +357,54 @@ async function fetchPipedPlaylist(playlistId: string): Promise<Song[]> {
   }
 
   throw lastError ?? new Error('No playlist data available');
+}
+
+function buildPlaylistArtwork(songs: Song[], playlistId: string): string {
+  const thumbnail = songs.find((song) => song.backendCoverUrl)?.backendCoverUrl;
+
+  if (thumbnail) {
+    return `linear-gradient(145deg, rgba(13, 18, 28, 0.14), rgba(13, 18, 28, 0.48)), url("${thumbnail}") center/cover no-repeat`;
+  }
+
+  return createSongFallbackCover({
+    album: 'Playlist de YouTube',
+    artist: 'Discora',
+    id: `ytpl:${playlistId}`,
+    sourceType: 'youtube',
+    title: `Playlist ${playlistId}`,
+  });
+}
+
+function buildPlaylistSongs(songs: Song[], playlistId: string): PlaylistSongEntry[] {
+  return songs.map((song, index) => ({
+    nextNodeId: index < songs.length - 1 ? `yt-node:${playlistId}:${index + 1}` : null,
+    nodeId: `yt-node:${playlistId}:${index}`,
+    prevNodeId: index > 0 ? `yt-node:${playlistId}:${index - 1}` : null,
+    song,
+  }));
+}
+
+function buildImportedPlaylist(playlistId: string, songs: Song[]): ImportedYouTubePlaylist {
+  const playlistTitle = songs[0]?.album || 'Importado desde YouTube';
+  const playlistSongs = buildPlaylistSongs(songs, playlistId);
+  const coverUrl = songs.find((song) => song.backendCoverUrl)?.backendCoverUrl;
+
+  return {
+    playlist: {
+      artwork: buildPlaylistArtwork(songs, playlistId),
+      coverUrl,
+      currentNodeId: null,
+      detail: 'Playlist importada desde YouTube para escucharla dentro de Discora.',
+      id: `ytpl:${playlistId}`,
+      name: playlistTitle,
+      songCount: songs.length,
+      songs: playlistSongs,
+      sourceLabel: 'YouTube',
+      sourceType: 'youtube',
+      youtubePlaylistId: playlistId,
+    },
+    songs,
+  };
 }
 
 function getBestAudioStream(record: UnknownRecord): string | null {
@@ -278,18 +462,62 @@ async function fetchPipedAudio(videoId: string): Promise<string> {
   throw lastError ?? new Error('No audio stream available');
 }
 
-export async function importYouTubePlaylist(input: string): Promise<Song[]> {
+export async function importYouTubePlaylist(input: string): Promise<ImportedYouTubePlaylistResult> {
   const playlistId = parsePlaylistId(input);
 
+  if (!input.trim()) {
+    throw new YouTubeImportError('empty', 'Missing playlist input');
+  }
+
   if (!playlistId) {
-    throw new Error('Invalid playlist id');
+    throw new YouTubeImportError('invalid_url', 'Invalid playlist id');
   }
 
   try {
-    return await fetchInvidiousPlaylist(playlistId);
-  } catch {
-    return fetchPipedPlaylist(playlistId);
+    const songs = await fetchInvidiousPlaylist(playlistId);
+    if (!songs.length) {
+      throw new YouTubeImportError('playlist_empty', 'Playlist returned no songs');
+    }
+
+    return {
+      ...buildImportedPlaylist(playlistId, songs),
+      isNewPlaylist: true,
+      provider: 'invidious',
+    };
+  } catch (error) {
+    if (error instanceof YouTubeImportError && (error.code === 'empty' || error.code === 'invalid_url')) {
+      throw error;
+    }
+
+    const songs = await fetchPipedPlaylist(playlistId);
+    if (!songs.length) {
+      throw new YouTubeImportError('playlist_empty', 'Playlist returned no songs');
+    }
+
+    return {
+      ...buildImportedPlaylist(playlistId, songs),
+      isNewPlaylist: true,
+      provider: 'piped',
+    };
   }
+}
+
+export function getYouTubeImportFeedbackMessage(error: unknown): string {
+  if (error instanceof YouTubeImportError) {
+    if (error.code === 'empty' || error.code === 'invalid_url') {
+      return 'Pega una URL valida de playlist o un ID publico de YouTube.';
+    }
+
+    if (error.code === 'playlist_private') {
+      return 'La playlist parece privada o no esta disponible para importacion publica.';
+    }
+
+    if (error.code === 'playlist_empty') {
+      return 'La playlist no tiene videos importables o no devolvio resultados.';
+    }
+  }
+
+  return 'Las instancias publicas de YouTube no estan disponibles en este momento.';
 }
 
 export async function resolveYouTubeAudioStream(videoId: string): Promise<string> {

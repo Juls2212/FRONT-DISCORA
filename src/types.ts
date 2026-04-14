@@ -14,12 +14,18 @@ export type Song = {
   youtubeVideoId?: string;
 };
 
+export type PlaylistSourceType = 'backend' | 'youtube';
+
 export type Playlist = {
   id: number | string;
   name: string;
   songCount: number;
   artwork: string;
   detail: string;
+  coverUrl?: string;
+  sourceLabel?: string;
+  sourceType?: PlaylistSourceType;
+  youtubePlaylistId?: string;
 };
 
 export type PlaylistSongNode = {
@@ -36,6 +42,12 @@ export type PlaylistSongEntry = {
 
 export type PlaylistDetail = Playlist & {
   currentNodeId: number | string | null;
+  songs: PlaylistSongEntry[];
+};
+
+export type FrontendPlaylistOverride = {
+  currentNodeId: number | string | null;
+  playlistId: number | string;
   songs: PlaylistSongEntry[];
 };
 

@@ -1,6 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { FavoriteButton } from './FavoriteButton';
 import { deleteSong, getSongs, searchSongs, updateSong, uploadSong } from '../services/discoraApi';
+import { getYouTubeImportFeedbackMessage } from '../services/youtubeImport';
 import { PlaybackContext, Song, SongPresentationState } from '../types';
 import { extractEmbeddedCover, readImageFileAsDataUrl } from '../utils/mp3Metadata';
 import { decorateSongs, getCoverSurfaceStyle } from '../utils/songPresentation';
@@ -11,11 +12,19 @@ import { StateMessage } from './StateMessage';
 type LibraryViewProps = SongPresentationState & {
   onAssignEmbeddedCover: (songId: Song['id'], coverDataUrl: string) => void;
   onAssignManualCover: (songId: Song['id'], coverDataUrl: string) => void;
-  onImportYouTubePlaylist: (playlistUrl: string) => Promise<number>;
+  onImportYouTubePlaylist: (playlistUrl: string) => Promise<{
+    importedCount: number;
+    isNewPlaylist: boolean;
+    playlistId: Song['id'];
+    playlistName: string;
+    provider: 'invidious' | 'piped';
+  }>;
+  onOpenImportedPlaylist: (playlistId: Song['id']) => void;
   onPlayTrack: (song: Song, context: PlaybackContext, queue?: Song[]) => void;
   onRemoveYouTubeSong: (songId: Song['id']) => void;
   onSongsReload: (songs: Song[]) => void;
   onToggleFavorite: (songId: Song['id']) => void;
+  unavailableSongIds: string[];
   youtubeSongs: Song[];
 };
 
@@ -29,10 +38,12 @@ export function LibraryView({
   onAssignEmbeddedCover,
   onAssignManualCover,
   onImportYouTubePlaylist,
+  onOpenImportedPlaylist,
   onPlayTrack,
   onRemoveYouTubeSong,
   onSongsReload,
   onToggleFavorite,
+  unavailableSongIds,
   youtubeSongs,
 }: LibraryViewProps) {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -46,9 +57,14 @@ export function LibraryView({
   const [uploadMessage, setUploadMessage] = useState('Selecciona un archivo MP3 para importarlo a tu biblioteca.');
   const [youtubePlaylistUrl, setYoutubePlaylistUrl] = useState('');
   const [youtubeImporting, setYoutubeImporting] = useState(false);
+  const [youtubeImportStatus, setYouTubeImportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [youtubeImportMessage, setYoutubeImportMessage] = useState(
-    'Pega un enlace de playlist de YouTube para importar sus canciones en Discora.',
+    'Pega un enlace de playlist de YouTube para importarla como playlist dentro de Discora.',
   );
+  const [lastImportedPlaylist, setLastImportedPlaylist] = useState<{
+    playlistId: Song['id'];
+    playlistName: string;
+  } | null>(null);
   const [deletingId, setDeletingId] = useState<Song['id'] | null>(null);
   const [coverTargetSongId, setCoverTargetSongId] = useState<Song['id'] | null>(null);
   const [editingSongId, setEditingSongId] = useState<Song['id'] | null>(null);
@@ -255,24 +271,33 @@ export function LibraryView({
     const trimmedUrl = youtubePlaylistUrl.trim();
 
     if (!trimmedUrl) {
-      setError('Pega un enlace valido de playlist de YouTube.');
+      setYouTubeImportStatus('error');
+      setYoutubeImportMessage('Pega una URL valida de playlist o un ID publico de YouTube.');
       return;
     }
 
     setYoutubeImporting(true);
+    setYouTubeImportStatus('loading');
     setError(null);
-    setYoutubeImportMessage('Importando playlist desde YouTube...');
+    setLastImportedPlaylist(null);
+    setYoutubeImportMessage('Importando playlist publica desde YouTube...');
 
     try {
-      const importedCount = await onImportYouTubePlaylist(trimmedUrl);
+      const result = await onImportYouTubePlaylist(trimmedUrl);
+      setYouTubeImportStatus('success');
       setYoutubeImportMessage(
-        importedCount > 0
-          ? `Playlist importada correctamente: ${importedCount} canciones agregadas.`
-          : 'La playlist ya estaba importada en Discora.',
+        result.isNewPlaylist
+          ? `Playlist importada correctamente: ${result.playlistName}. ${result.importedCount} canciones disponibles.`
+          : `La playlist ya existia en Discora. ${result.importedCount} canciones sincronizadas.`,
       );
+      setLastImportedPlaylist({
+        playlistId: result.playlistId,
+        playlistName: result.playlistName,
+      });
       setYoutubePlaylistUrl('');
-    } catch {
-      setYoutubeImportMessage('No se pudo importar la playlist de YouTube desde las instancias publicas.');
+    } catch (importError) {
+      setYouTubeImportStatus('error');
+      setYoutubeImportMessage(getYouTubeImportFeedbackMessage(importError));
     } finally {
       setYoutubeImporting(false);
     }
@@ -421,18 +446,26 @@ export function LibraryView({
             </div>
           </div>
           <div className="library-import-panel">
-            <div className="library-import-status">
+            <div className={`library-import-status library-import-status-${youtubeImportStatus === 'loading' ? 'uploading' : youtubeImportStatus}`}>
               <p className="library-import-label">Importador YouTube</p>
-              <h3>{youtubeImporting ? 'Importando playlist' : 'Playlist de YouTube'}</h3>
+              <h3>
+                {youtubeImportStatus === 'loading'
+                  ? 'Importando playlist'
+                  : youtubeImportStatus === 'success'
+                    ? 'Playlist lista'
+                    : youtubeImportStatus === 'error'
+                      ? 'No se pudo importar'
+                      : 'Playlist de YouTube'}
+              </h3>
               <p>{youtubeImportMessage}</p>
             </div>
             <label className="library-search">
-              <span>Enlace de playlist</span>
+              <span>Enlace o ID de playlist</span>
               <input
-                type="url"
+                type="text"
                 value={youtubePlaylistUrl}
                 onChange={(event) => setYoutubePlaylistUrl(event.target.value)}
-                placeholder="https://www.youtube.com/playlist?list=..."
+                placeholder="https://www.youtube.com/playlist?list=... o PL..."
               />
             </label>
             <div className="library-import-actions">
@@ -444,7 +477,21 @@ export function LibraryView({
               >
                 {youtubeImporting ? 'Importando...' : 'Importar playlist'}
               </button>
+              {lastImportedPlaylist ? (
+                <button
+                  className="library-secondary-button"
+                  type="button"
+                  onClick={() => onOpenImportedPlaylist(lastImportedPlaylist.playlistId)}
+                >
+                  Abrir playlist
+                </button>
+              ) : null}
             </div>
+            {lastImportedPlaylist ? (
+              <p className="library-import-hint">
+                Acceso rapido a <strong>{lastImportedPlaylist.playlistName}</strong> desde Playlists.
+              </p>
+            ) : null}
           </div>
           <input
             ref={fileInputRef}
@@ -508,7 +555,10 @@ export function LibraryView({
         {!loading && !error && filteredSongs.length > 0 ? (
           <div className="library-song-list">
             {filteredSongs.map((song) => (
-              <article key={song.id} className="library-song-row">
+              <article
+                key={song.id}
+                className={`library-song-row${unavailableSongIds.includes(String(song.id)) ? ' library-song-row-unavailable' : ''}`}
+              >
                 <div className="library-song-row-main">
                   <button
                     className="library-song-meta"
@@ -519,6 +569,9 @@ export function LibraryView({
                     <div>
                       <h3>{song.title}</h3>
                       <p>{song.artist} - {song.album}</p>
+                      {unavailableSongIds.includes(String(song.id)) ? (
+                        <span className="library-song-badge">No disponible</span>
+                      ) : null}
                     </div>
                   </button>
                   <div className="library-song-actions">

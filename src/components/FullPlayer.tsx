@@ -13,6 +13,7 @@ type FullPlayerProps = {
   onSeek: (time: number) => void;
   onToggleFavorite: () => void;
   onTogglePlayback: () => void;
+  playbackError: string | null;
   playbackContext: PlaybackContext | null;
   playbackDuration: number;
   selectedTrack: Song | null;
@@ -243,6 +244,7 @@ export function FullPlayer({
   onSeek,
   onToggleFavorite,
   onTogglePlayback,
+  playbackError,
   playbackContext,
   playbackDuration,
   selectedTrack,
@@ -330,7 +332,7 @@ export function FullPlayer({
               </div>
             ) : null}
             <h2>{selectedTrack?.title ?? 'Selecciona una cancion'}</h2>
-            <p>{selectedTrack?.artist ?? 'Discora lista para reproducir'}</p>
+            <p>{playbackError ?? selectedTrack?.artist ?? 'Discora lista para reproducir'}</p>
 
             <div className="full-player-progress">
               <div className="full-player-progress-header">

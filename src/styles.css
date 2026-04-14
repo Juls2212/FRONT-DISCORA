@@ -381,6 +381,12 @@ button {
   line-height: 1.6;
 }
 
+.library-import-hint {
+  margin: -2px 0 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 .library-import-status-uploading h3 {
   color: var(--text-primary);
 }
@@ -491,6 +497,11 @@ button {
   padding: 16px 18px;
   border: 1px solid var(--border-color);
   background: var(--card-bg);
+}
+
+.library-song-row-unavailable,
+.playlist-detail-row-unavailable {
+  opacity: 0.78;
 }
 
 .library-song-row-main {
@@ -1570,6 +1581,19 @@ button {
   text-transform: uppercase;
   color: var(--primary-button-text);
   background: var(--primary-button-bg);
+}
+
+.playlist-current-badge-muted,
+.library-song-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  background: var(--panel-soft);
 }
 
 .playlist-detail-actions {
