@@ -1,27 +1,56 @@
-import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FavoriteButton } from './FavoriteButton';
 import { deleteSong, getSongs, searchSongs, uploadSong } from '../services/discoraApi';
-import { PlaybackContext, Song } from '../types';
+import { PlaybackContext, Song, SongPresentationState } from '../types';
+import { extractEmbeddedCover, readImageFileAsDataUrl } from '../utils/mp3Metadata';
+import { decorateSongs } from '../utils/songPresentation';
 import { needsDurationResolution, resolveSongDuration } from '../utils/audio';
 import { SectionContainer } from './SectionContainer';
 import { StateMessage } from './StateMessage';
 
-type LibraryViewProps = {
+type LibraryViewProps = SongPresentationState & {
+  onAssignEmbeddedCover: (songId: Song['id'], coverDataUrl: string) => void;
+  onAssignManualCover: (songId: Song['id'], coverDataUrl: string) => void;
   onPlayTrack: (song: Song, context: PlaybackContext, queue?: Song[]) => void;
   onSongsReload: (songs: Song[]) => void;
+  onToggleFavorite: (songId: Song['id']) => void;
 };
 
 type UploadStatus = 'error' | 'idle' | 'success' | 'uploading';
 
-export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
+export function LibraryView({
+  embeddedCoverBySongId,
+  favoriteSongIds,
+  manualCoverBySongId,
+  onAssignEmbeddedCover,
+  onAssignManualCover,
+  onPlayTrack,
+  onSongsReload,
+  onToggleFavorite,
+}: LibraryViewProps) {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedEmbeddedCover, setSelectedEmbeddedCover] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const [uploadMessage, setUploadMessage] = useState('Selecciona un archivo MP3 para importarlo a tu biblioteca.');
   const [deletingId, setDeletingId] = useState<Song['id'] | null>(null);
+  const [coverTargetSongId, setCoverTargetSongId] = useState<Song['id'] | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const coverInputRef = useRef<HTMLInputElement | null>(null);
+
+  const presentationState: SongPresentationState = useMemo(
+    () => ({
+      embeddedCoverBySongId,
+      favoriteSongIds,
+      manualCoverBySongId,
+    }),
+    [embeddedCoverBySongId, favoriteSongIds, manualCoverBySongId],
+  );
+
+  const displayedSongs = useMemo(() => decorateSongs(songs, presentationState), [presentationState, songs]);
 
   const loadSongs = async () => {
     setLoading(true);
@@ -31,8 +60,10 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
       const nextSongs = searchTerm.trim() ? await searchSongs(searchTerm.trim()) : await getSongs();
       setSongs(nextSongs);
       onSongsReload(nextSongs);
+      return nextSongs;
     } catch {
       setError('No se pudo cargar la biblioteca.');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -63,7 +94,10 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
 
       const resolvedDurations = new Map(
         results
-          .filter((result): result is PromiseFulfilledResult<{ duration: string; id: Song['id'] }> => result.status === 'fulfilled')
+          .filter(
+            (result): result is PromiseFulfilledResult<{ duration: string; id: Song['id'] }> =>
+              result.status === 'fulfilled',
+          )
           .map((result) => [result.value.id, result.value.duration]),
       );
 
@@ -91,16 +125,22 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
     if (!file) {
       return;
     }
 
+    const embeddedCover = await extractEmbeddedCover(file);
     setSelectedFile(file);
+    setSelectedEmbeddedCover(embeddedCover);
     setUploadStatus('idle');
-    setUploadMessage(`Archivo listo para importar: ${file.name}`);
+    setUploadMessage(
+      embeddedCover
+        ? `Archivo listo para importar: ${file.name}. Se detecto portada integrada.`
+        : `Archivo listo para importar: ${file.name}`,
+    );
   };
 
   const handleConfirmUpload = async () => {
@@ -110,6 +150,7 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
       return;
     }
 
+    const previousSongIds = new Set(songs.map((song) => String(song.id)));
     setUploadStatus('uploading');
     setUploadMessage(`Importando ${selectedFile.name}...`);
 
@@ -117,10 +158,18 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
       await uploadSong({
         file: selectedFile,
       });
-      await loadSongs();
+
+      const nextSongs = await loadSongs();
+      const importedSong = nextSongs.find((song) => !previousSongIds.has(String(song.id)));
+
+      if (importedSong && selectedEmbeddedCover) {
+        onAssignEmbeddedCover(importedSong.id, selectedEmbeddedCover);
+      }
+
       setUploadStatus('success');
       setUploadMessage(`Importacion completada: ${selectedFile.name}`);
       setSelectedFile(null);
+      setSelectedEmbeddedCover(null);
     } catch {
       setUploadStatus('error');
       setUploadMessage('No se pudo importar el archivo seleccionado.');
@@ -129,8 +178,10 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
 
   const handleClearSelectedFile = () => {
     setSelectedFile(null);
+    setSelectedEmbeddedCover(null);
     setUploadStatus('idle');
     setUploadMessage('Selecciona un archivo MP3 para importarlo a tu biblioteca.');
+
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -147,6 +198,32 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
       setError('No se pudo eliminar la cancion.');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleCoverSelection = (songId: Song['id']) => {
+    setCoverTargetSongId(songId);
+    coverInputRef.current?.click();
+  };
+
+  const handleCoverFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file || coverTargetSongId === null) {
+      return;
+    }
+
+    try {
+      const coverDataUrl = await readImageFileAsDataUrl(file);
+      onAssignManualCover(coverTargetSongId, coverDataUrl);
+    } catch {
+      setError('No se pudo cargar la portada seleccionada.');
+    } finally {
+      setCoverTargetSongId(null);
+
+      if (coverInputRef.current) {
+        coverInputRef.current.value = '';
+      }
     }
   };
 
@@ -188,6 +265,12 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
               </h3>
               <p>{uploadMessage}</p>
             </div>
+            {selectedEmbeddedCover ? (
+              <div className="library-import-preview">
+                <div className="library-import-preview-cover" style={{ backgroundImage: `url(${selectedEmbeddedCover})` }} />
+                <span>Portada integrada detectada</span>
+              </div>
+            ) : null}
             <div className="library-import-actions">
               <button className="library-secondary-button" type="button" onClick={handleUploadClick}>
                 Elegir MP3
@@ -214,10 +297,17 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
             accept=".mp3,audio/mpeg"
             onChange={handleFileChange}
           />
+          <input
+            ref={coverInputRef}
+            className="library-file-input"
+            type="file"
+            accept="image/*"
+            onChange={handleCoverFileChange}
+          />
         </div>
       </section>
 
-      <SectionContainer title="Todas las canciones" subtitle={`${songs.length} resultados`}>
+      <SectionContainer title="Todas las canciones" subtitle={`${displayedSongs.length} resultados`}>
         {loading ? (
           <StateMessage
             title="Cargando biblioteca"
@@ -225,35 +315,37 @@ export function LibraryView({ onPlayTrack, onSongsReload }: LibraryViewProps) {
           />
         ) : null}
         {!loading && error ? <StateMessage title="No fue posible cargar la biblioteca" description={error} /> : null}
-        {!loading && !error && songs.length === 0 ? (
+        {!loading && !error && displayedSongs.length === 0 ? (
           <StateMessage
             title="No se encontraron canciones"
             description="Prueba otra busqueda o importa un archivo MP3 para comenzar."
           />
         ) : null}
-        {!loading && !error && songs.length > 0 ? (
+        {!loading && !error && displayedSongs.length > 0 ? (
           <div className="library-song-list">
-            {songs.map((song) => (
+            {displayedSongs.map((song) => (
               <article key={song.id} className="library-song-row">
                 <button
                   className="library-song-meta"
                   type="button"
-                  onClick={() => onPlayTrack(song, { type: 'library' }, songs)}
+                  onClick={() => onPlayTrack(song, { type: 'library' }, displayedSongs)}
                 >
                   <div className="library-song-cover" style={{ background: song.cover }} />
                   <div>
                     <h3>{song.title}</h3>
-                    <p>
-                      {song.artist} · {song.album}
-                    </p>
+                    <p>{song.artist} - {song.album}</p>
                   </div>
                 </button>
                 <div className="library-song-actions">
                   <span>{song.duration}</span>
+                  <FavoriteButton isActive={Boolean(song.isFavorite)} onClick={() => onToggleFavorite(song.id)} />
+                  <button className="library-secondary-button" type="button" onClick={() => handleCoverSelection(song.id)}>
+                    Portada
+                  </button>
                   <button
                     className="library-secondary-button"
                     type="button"
-                    onClick={() => onPlayTrack(song, { type: 'library' }, songs)}
+                    onClick={() => onPlayTrack(song, { type: 'library' }, displayedSongs)}
                   >
                     Reproducir
                   </button>

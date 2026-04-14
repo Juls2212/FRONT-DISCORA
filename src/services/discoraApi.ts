@@ -80,14 +80,18 @@ function unwrapResponseData(response: unknown, collectionKey?: 'playlists' | 'so
 
 function normalizeSong(item: unknown, index: number): Song {
   const record = asRecord(item);
+  const placeholderCover = songArtwork[index % songArtwork.length];
+  const backendCoverUrl = normalizeAudioUrl(asString(record.coverUrl, ''));
 
   return {
     album: asString(record.album ?? record.playlist, 'Sin album'),
     audioUrl: normalizeAudioUrl(asString(record.audioUrl, '')),
     artist: asString(record.artist ?? record.author, 'Artista sin nombre'),
-    cover: asString(record.coverUrl, songArtwork[index % songArtwork.length]),
+    backendCoverUrl: backendCoverUrl || undefined,
+    cover: backendCoverUrl || placeholderCover,
     duration: formatDuration(record.duration ?? record.length),
     id: asId(record.id, index + 1),
+    placeholderCover,
     title: asString(record.title ?? record.name, `Cancion ${index + 1}`),
   };
 }

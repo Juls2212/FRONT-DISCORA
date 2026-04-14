@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { FavoriteButton } from './FavoriteButton';
 import { PlaybackContext, Song } from '../types';
 
 type FullPlayerProps = {
@@ -9,6 +10,7 @@ type FullPlayerProps = {
   onNext: () => void;
   onPrevious: () => void;
   onSeek: (time: number) => void;
+  onToggleFavorite: () => void;
   onTogglePlayback: () => void;
   playbackContext: PlaybackContext | null;
   playbackDuration: number;
@@ -268,6 +270,7 @@ export function FullPlayer({
   onNext,
   onPrevious,
   onSeek,
+  onToggleFavorite,
   onTogglePlayback,
   playbackContext,
   playbackDuration,
@@ -350,6 +353,11 @@ export function FullPlayer({
 
           <div className="full-player-info">
             <span className="full-player-kicker">{contextCopy}</span>
+            {selectedTrack ? (
+              <div className="full-player-favorite-row">
+                <FavoriteButton isActive={Boolean(selectedTrack.isFavorite)} onClick={onToggleFavorite} />
+              </div>
+            ) : null}
             <h2>{selectedTrack?.title ?? 'Selecciona una cancion'}</h2>
             <p>{selectedTrack?.artist ?? 'Discora lista para reproducir'}</p>
 

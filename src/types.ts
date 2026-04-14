@@ -4,8 +4,11 @@ export type Song = {
   artist: string;
   album: string;
   audioUrl: string;
+  backendCoverUrl?: string;
   duration: string;
   cover: string;
+  placeholderCover: string;
+  isFavorite?: boolean;
 };
 
 export type Playlist = {
@@ -42,3 +45,9 @@ export type PlaybackContext =
       playlistName: string;
       type: 'playlist';
     };
+
+export type SongPresentationState = {
+  embeddedCoverBySongId: Record<string, string>;
+  favoriteSongIds: string[];
+  manualCoverBySongId: Record<string, string>;
+};

@@ -1,12 +1,13 @@
 import { Song } from '../types';
 
 type RecentSongItemProps = {
+  onClick: () => void;
   song: Song;
 };
 
-export function RecentSongItem({ song }: RecentSongItemProps) {
+export function RecentSongItem({ onClick, song }: RecentSongItemProps) {
   return (
-    <article className="recent-song-item">
+    <button className="recent-song-item" type="button" onClick={onClick}>
       <div className="recent-song-meta">
         <div className="recent-song-cover" style={{ background: song.cover }} />
         <div>
@@ -15,6 +16,6 @@ export function RecentSongItem({ song }: RecentSongItemProps) {
         </div>
       </div>
       <span>{song.duration}</span>
-    </article>
+    </button>
   );
 }

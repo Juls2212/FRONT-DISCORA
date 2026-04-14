@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   addSongToPlaylist,
   createPlaylist,
@@ -9,27 +9,34 @@ import {
   removeSongFromPlaylist,
   setCurrentSongInPlaylist,
 } from '../services/discoraApi';
-import { PlaybackContext, Playlist, PlaylistDetail, Song } from '../types';
+import { FavoriteButton } from './FavoriteButton';
+import { decorateSong } from '../utils/songPresentation';
+import { PlaybackContext, Playlist, PlaylistDetail, Song, SongPresentationState } from '../types';
 import { PlaylistCard } from './PlaylistCard';
 import { SectionContainer } from './SectionContainer';
 import { StateMessage } from './StateMessage';
 
-type PlaylistsViewProps = {
+type PlaylistsViewProps = SongPresentationState & {
   playlists: Playlist[];
   playlistsError: string | null;
   playlistsLoading: boolean;
   songs: Song[];
   onRefreshPlaylists: () => Promise<void>;
   onPlayTrack: (song: Song, context: PlaybackContext, queue?: Song[]) => void;
+  onToggleFavorite: (songId: Song['id']) => void;
 };
 
 export function PlaylistsView({
+  embeddedCoverBySongId,
+  favoriteSongIds,
+  manualCoverBySongId,
   playlists,
   playlistsError,
   playlistsLoading,
   songs,
   onRefreshPlaylists,
   onPlayTrack,
+  onToggleFavorite,
 }: PlaylistsViewProps) {
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<Playlist['id'] | null>(null);
   const [playlistDetail, setPlaylistDetail] = useState<PlaylistDetail | null>(null);
@@ -45,8 +52,22 @@ export function PlaylistsView({
   const [movingNodeId, setMovingNodeId] = useState<Playlist['id'] | null>(null);
   const [settingCurrentNodeId, setSettingCurrentNodeId] = useState<Playlist['id'] | null>(null);
 
+  const presentationState: SongPresentationState = useMemo(
+    () => ({
+      embeddedCoverBySongId,
+      favoriteSongIds,
+      manualCoverBySongId,
+    }),
+    [embeddedCoverBySongId, favoriteSongIds, manualCoverBySongId],
+  );
+
+  const displayedPlaylistSongs = useMemo(
+    () => playlistDetail?.songs.map((entry) => ({ ...entry, song: decorateSong(entry.song, presentationState) })) ?? [],
+    [playlistDetail, presentationState],
+  );
+
   const availableSongs = songs.filter(
-    (song) => !playlistDetail?.songs.some((entry) => entry.song.id === song.id),
+    (song) => !displayedPlaylistSongs.some((entry) => entry.song.id === song.id),
   );
 
   const getPlaylistPlaybackContext = (): PlaybackContext | null => {
@@ -344,14 +365,14 @@ export function PlaylistsView({
               </div>
             </div>
 
-            {playlistDetail.songs.length === 0 ? (
+            {displayedPlaylistSongs.length === 0 ? (
               <StateMessage
                 title="Esta playlist esta vacia"
                 description="Agrega canciones desde la biblioteca para verla completa."
               />
             ) : (
               <div className="playlist-detail-list">
-                {playlistDetail.songs.map((entry, index) => (
+                {displayedPlaylistSongs.map((entry, index) => (
                   <article
                     key={entry.nodeId}
                     className={`playlist-detail-row${playlistDetail.currentNodeId === entry.nodeId ? ' playlist-detail-row-current' : ''}`}
@@ -366,7 +387,7 @@ export function PlaylistsView({
                           onPlayTrack(
                             entry.song,
                             context,
-                            playlistDetail.songs.map((playlistSong) => playlistSong.song),
+                            displayedPlaylistSongs.map((playlistSong) => playlistSong.song),
                           );
                         }
                       }}
@@ -374,7 +395,7 @@ export function PlaylistsView({
                       <div className="playlist-detail-cover" style={{ background: entry.song.cover }} />
                       <div>
                         <h3>{entry.song.title}</h3>
-                        <p>{entry.song.artist} · {entry.song.album}</p>
+                        <p>{entry.song.artist} - {entry.song.album}</p>
                         {playlistDetail.currentNodeId === entry.nodeId ? (
                           <span className="playlist-current-badge">Actual</span>
                         ) : null}
@@ -382,6 +403,7 @@ export function PlaylistsView({
                     </button>
                     <div className="playlist-detail-actions">
                       <span>{entry.song.duration}</span>
+                      <FavoriteButton isActive={Boolean(entry.song.isFavorite)} onClick={() => onToggleFavorite(entry.song.id)} />
                       <button
                         className="library-secondary-button"
                         type="button"
@@ -394,7 +416,7 @@ export function PlaylistsView({
                         className="library-secondary-button"
                         type="button"
                         onClick={() => handleMoveSongDown(entry.nodeId)}
-                        disabled={movingNodeId === entry.nodeId || index === playlistDetail.songs.length - 1}
+                        disabled={movingNodeId === entry.nodeId || index === displayedPlaylistSongs.length - 1}
                       >
                         {movingNodeId === entry.nodeId ? 'Moviendo...' : 'Bajar'}
                       </button>
@@ -416,7 +438,7 @@ export function PlaylistsView({
                             onPlayTrack(
                               entry.song,
                               context,
-                              playlistDetail.songs.map((playlistSong) => playlistSong.song),
+                              displayedPlaylistSongs.map((playlistSong) => playlistSong.song),
                             );
                           }
                         }}

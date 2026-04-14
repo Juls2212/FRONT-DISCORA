@@ -65,19 +65,31 @@ export function MiniPlayer({
         <div>
           <span className="mini-player-label">{playbackLabel}</span>
           <h3>{selectedTrack?.title ?? 'Selecciona una cancion'}</h3>
-          <p>{selectedTrack ? `${selectedTrack.artist} · ${selectedTrack.duration}` : 'Discora conectada al backend'}</p>
+          <p>{selectedTrack ? `${selectedTrack.artist} - ${selectedTrack.duration}` : 'Discora conectada al backend'}</p>
         </div>
       </button>
 
       <div className="mini-player-center">
         <div className="mini-player-controls">
-          <button className="player-secondary-button" type="button" aria-label="Anterior" onClick={onPrevious} disabled={!canGoPrevious}>
+          <button
+            className="player-secondary-button"
+            type="button"
+            aria-label="Anterior"
+            onClick={onPrevious}
+            disabled={!canGoPrevious}
+          >
             {'<'}
           </button>
           <button type="button" onClick={onTogglePlayback} disabled={!selectedTrack}>
             {isPlaying ? 'Pausar' : 'Reproducir'}
           </button>
-          <button className="player-secondary-button" type="button" aria-label="Siguiente" onClick={onNext} disabled={!canGoNext}>
+          <button
+            className="player-secondary-button"
+            type="button"
+            aria-label="Siguiente"
+            onClick={onNext}
+            disabled={!canGoNext}
+          >
             {'>'}
           </button>
         </div>

@@ -1,5 +1,5 @@
 import { featuredMoment } from '../data';
-import { Playlist, Song } from '../types';
+import { PlaybackContext, Playlist, Song } from '../types';
 import { FeaturedPanel } from './FeaturedPanel';
 import { PlaylistCard } from './PlaylistCard';
 import { RecentSongItem } from './RecentSongItem';
@@ -7,6 +7,7 @@ import { SectionContainer } from './SectionContainer';
 import { StateMessage } from './StateMessage';
 
 type MainContentProps = {
+  onPlayTrack: (song: Song, context: PlaybackContext, queue?: Song[]) => void;
   playlists: Playlist[];
   playlistsError: string | null;
   playlistsLoading: boolean;
@@ -16,6 +17,7 @@ type MainContentProps = {
 };
 
 export function MainContent({
+  onPlayTrack,
   playlists,
   playlistsError,
   playlistsLoading,
@@ -89,7 +91,11 @@ export function MainContent({
         {!songsLoading && !songsError && songs.length > 0 ? (
           <div className="recent-songs-list">
             {songs.map((song) => (
-              <RecentSongItem key={song.id} song={song} />
+              <RecentSongItem
+                key={song.id}
+                song={song}
+                onClick={() => onPlayTrack(song, { type: 'library' }, songs)}
+              />
             ))}
           </div>
         ) : null}

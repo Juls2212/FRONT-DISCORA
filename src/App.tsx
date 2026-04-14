@@ -6,13 +6,35 @@ import { MiniPlayer } from './components/MiniPlayer';
 import { PlaylistsView } from './components/PlaylistsView';
 import { Sidebar } from './components/Sidebar';
 import { getPlaylists, getSongs } from './services/discoraApi';
-import { PlaybackContext, Playlist, Song } from './types';
+import { PlaybackContext, Playlist, Song, SongPresentationState } from './types';
+import { decorateSong, decorateSongs, getSongIdKey } from './utils/songPresentation';
 import { needsDurationResolution, resolveSongDuration } from './utils/audio';
 
 type Theme = 'dark' | 'light';
 type ViewName = 'home' | 'library' | 'playlists';
 
 const THEME_STORAGE_KEY = 'discora-theme';
+const FAVORITES_STORAGE_KEY = 'discora-favorite-song-ids';
+const MANUAL_COVERS_STORAGE_KEY = 'discora-manual-cover-by-song-id';
+const EMBEDDED_COVERS_STORAGE_KEY = 'discora-embedded-cover-by-song-id';
+
+function readStorageRecord(storageKey: string): Record<string, string> {
+  try {
+    const value = window.localStorage.getItem(storageKey);
+    return value ? (JSON.parse(value) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function readStorageArray(storageKey: string): string[] {
+  try {
+    const value = window.localStorage.getItem(storageKey);
+    return value ? (JSON.parse(value) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -31,6 +53,28 @@ function App() {
   const [playbackContext, setPlaybackContext] = useState<PlaybackContext | null>(null);
   const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);
   const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
+  const [favoriteSongIds, setFavoriteSongIds] = useState<string[]>(() => readStorageArray(FAVORITES_STORAGE_KEY));
+  const [manualCoverBySongId, setManualCoverBySongId] = useState<Record<string, string>>(
+    () => readStorageRecord(MANUAL_COVERS_STORAGE_KEY),
+  );
+  const [embeddedCoverBySongId, setEmbeddedCoverBySongId] = useState<Record<string, string>>(
+    () => readStorageRecord(EMBEDDED_COVERS_STORAGE_KEY),
+  );
+
+  const presentationState = useMemo<SongPresentationState>(
+    () => ({
+      embeddedCoverBySongId,
+      favoriteSongIds,
+      manualCoverBySongId,
+    }),
+    [embeddedCoverBySongId, favoriteSongIds, manualCoverBySongId],
+  );
+
+  const displayedSongs = useMemo(() => decorateSongs(songs, presentationState), [songs, presentationState]);
+  const displayedSelectedTrack = useMemo(
+    () => (selectedTrack ? decorateSong(selectedTrack, presentationState) : null),
+    [presentationState, selectedTrack],
+  );
 
   const currentTrackIndex = useMemo(() => {
     if (!selectedTrack) {
@@ -43,6 +87,18 @@ function App() {
   const canGoPrevious = currentTrackIndex > 0;
   const canGoNext = currentTrackIndex >= 0 && currentTrackIndex < playbackQueue.length - 1;
 
+  useEffect(() => {
+    window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favoriteSongIds));
+  }, [favoriteSongIds]);
+
+  useEffect(() => {
+    window.localStorage.setItem(MANUAL_COVERS_STORAGE_KEY, JSON.stringify(manualCoverBySongId));
+  }, [manualCoverBySongId]);
+
+  useEffect(() => {
+    window.localStorage.setItem(EMBEDDED_COVERS_STORAGE_KEY, JSON.stringify(embeddedCoverBySongId));
+  }, [embeddedCoverBySongId]);
+
   const loadSongs = async () => {
     setSongsLoading(true);
     setSongsError(null);
@@ -52,7 +108,7 @@ function App() {
       setSongs(nextSongs);
       setSelectedTrack((currentTrack) => currentTrack ?? nextSongs[0] ?? null);
       setPlaybackContext((currentContext) => currentContext ?? (nextSongs[0] ? { type: 'library' } : null));
-      setPlaybackQueue((currentQueue) => currentQueue.length ? currentQueue : nextSongs);
+      setPlaybackQueue((currentQueue) => (currentQueue.length ? currentQueue : nextSongs));
     } catch {
       setSongsError('No se pudieron cargar las canciones.');
     } finally {
@@ -303,6 +359,7 @@ function App() {
     setPlaybackQueue(queue?.length ? queue : [song]);
     setCurrentTime(0);
     setIsPlaying(true);
+    setIsFullPlayerOpen(true);
   };
 
   const handleSeek = (nextTime: number) => {
@@ -336,6 +393,39 @@ function App() {
     setIsPlaying(true);
   };
 
+  const handleToggleFavorite = (songId: Song['id']) => {
+    const songKey = getSongIdKey(songId);
+
+    setFavoriteSongIds((currentFavorites) =>
+      currentFavorites.includes(songKey)
+        ? currentFavorites.filter((favoriteId) => favoriteId !== songKey)
+        : [...currentFavorites, songKey],
+    );
+  };
+
+  const handleAssignManualCover = (songId: Song['id'], coverDataUrl: string) => {
+    const songKey = getSongIdKey(songId);
+    setManualCoverBySongId((currentCovers) => ({
+      ...currentCovers,
+      [songKey]: coverDataUrl,
+    }));
+  };
+
+  const handleAssignEmbeddedCover = (songId: Song['id'], coverDataUrl: string) => {
+    const songKey = getSongIdKey(songId);
+
+    setEmbeddedCoverBySongId((currentCovers) => {
+      if (currentCovers[songKey]) {
+        return currentCovers;
+      }
+
+      return {
+        ...currentCovers,
+        [songKey]: coverDataUrl,
+      };
+    });
+  };
+
   return (
     <div className="app-shell">
       <div className="app-layout">
@@ -350,22 +440,36 @@ function App() {
         />
         <div className="content-shell">
           {activeView === 'library' ? (
-            <LibraryView onPlayTrack={handlePlayTrack} onSongsReload={handleSongsReload} />
+            <LibraryView
+              embeddedCoverBySongId={embeddedCoverBySongId}
+              favoriteSongIds={favoriteSongIds}
+              manualCoverBySongId={manualCoverBySongId}
+              onAssignEmbeddedCover={handleAssignEmbeddedCover}
+              onAssignManualCover={handleAssignManualCover}
+              onPlayTrack={handlePlayTrack}
+              onSongsReload={handleSongsReload}
+              onToggleFavorite={handleToggleFavorite}
+            />
           ) : activeView === 'playlists' ? (
             <PlaylistsView
+              embeddedCoverBySongId={embeddedCoverBySongId}
+              favoriteSongIds={favoriteSongIds}
+              manualCoverBySongId={manualCoverBySongId}
               playlists={playlists}
               playlistsError={playlistsError}
               playlistsLoading={playlistsLoading}
-              songs={songs}
+              songs={displayedSongs}
               onPlayTrack={handlePlayTrack}
               onRefreshPlaylists={loadPlaylists}
+              onToggleFavorite={handleToggleFavorite}
             />
           ) : (
             <MainContent
+              onPlayTrack={handlePlayTrack}
               playlists={playlists}
               playlistsError={playlistsError}
               playlistsLoading={playlistsLoading}
-              songs={songs}
+              songs={displayedSongs}
               songsError={songsError}
               songsLoading={songsLoading}
             />
@@ -384,7 +488,7 @@ function App() {
         onTogglePlayback={handleTogglePlayback}
         playbackContext={playbackContext}
         playbackDuration={playbackDuration}
-        selectedTrack={selectedTrack}
+        selectedTrack={displayedSelectedTrack}
       />
       <FullPlayer
         canGoNext={canGoNext}
@@ -396,10 +500,15 @@ function App() {
         onNext={handleNextTrack}
         onPrevious={handlePreviousTrack}
         onSeek={handleSeek}
+        onToggleFavorite={() => {
+          if (displayedSelectedTrack) {
+            handleToggleFavorite(displayedSelectedTrack.id);
+          }
+        }}
         onTogglePlayback={handleTogglePlayback}
         playbackContext={playbackContext}
         playbackDuration={playbackDuration}
-        selectedTrack={selectedTrack}
+        selectedTrack={displayedSelectedTrack}
       />
     </div>
   );

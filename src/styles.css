@@ -390,6 +390,22 @@ button {
   flex-wrap: wrap;
 }
 
+.library-import-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+.library-import-preview-cover {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background-position: center;
+  background-size: cover;
+  border: 1px solid var(--art-border);
+}
+
 .library-primary-button,
 .library-secondary-button,
 .library-danger-button {
@@ -449,6 +465,7 @@ button {
   gap: 14px;
   flex: 1;
   text-align: left;
+  border: 0;
   background: transparent;
   color: inherit;
 }
@@ -475,6 +492,24 @@ button {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.favorite-button {
+  min-width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  border: 1px solid var(--secondary-button-border);
+  border-radius: 999px;
+  color: var(--secondary-button-text);
+  background: var(--secondary-button-bg);
+}
+
+.favorite-button-active {
+  color: var(--primary-button-text);
+  background: var(--primary-button-bg);
 }
 
 .theme-toggle-icon {
@@ -825,6 +860,7 @@ button {
   gap: 14px;
   flex: 1;
   text-align: left;
+  border: 0;
   background: transparent;
   color: inherit;
 }
@@ -877,8 +913,13 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
+  width: 100%;
+  border: 1px solid var(--border-color);
   border-radius: 24px;
   padding: 16px 18px;
+  text-align: left;
+  color: inherit;
+  background: var(--card-bg);
 }
 
 .recent-song-item:hover {
@@ -1247,6 +1288,11 @@ button {
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.full-player-favorite-row {
+  display: flex;
+  align-items: center;
 }
 
 .full-player-info h2 {
