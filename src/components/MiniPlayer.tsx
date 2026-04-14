@@ -2,13 +2,9 @@ import { PlaybackContext, Song } from '../types';
 import { getCoverSurfaceStyle } from '../utils/songPresentation';
 
 type MiniPlayerProps = {
-  canGoNext: boolean;
-  canGoPrevious: boolean;
   currentTime: number;
   isPlaying: boolean;
-  onNext: () => void;
   onOpenFullPlayer: () => void;
-  onPrevious: () => void;
   onSeek: (time: number) => void;
   onTogglePlayback: () => void;
   playbackContext: PlaybackContext | null;
@@ -29,13 +25,9 @@ function formatPlaybackTime(value: number): string {
 }
 
 export function MiniPlayer({
-  canGoNext,
-  canGoPrevious,
   currentTime,
   isPlaying,
-  onNext,
   onOpenFullPlayer,
-  onPrevious,
   onSeek,
   onTogglePlayback,
   playbackContext,
@@ -70,16 +62,6 @@ export function MiniPlayer({
       <div className="mini-player-center">
         <div className="mini-player-controls">
           <button
-            className="player-secondary-button"
-            type="button"
-            aria-label="Anterior"
-            onClick={onPrevious}
-            disabled={!canGoPrevious}
-            title="Anterior"
-          >
-            <span aria-hidden="true">{'<<'}</span>
-          </button>
-          <button
             className="mini-player-primary-icon"
             type="button"
             onClick={onTogglePlayback}
@@ -88,16 +70,6 @@ export function MiniPlayer({
             title={isPlaying ? 'Pausar' : 'Reproducir'}
           >
             <span aria-hidden="true">{isPlaying ? '||' : '>'}</span>
-          </button>
-          <button
-            className="player-secondary-button"
-            type="button"
-            aria-label="Siguiente"
-            onClick={onNext}
-            disabled={!canGoNext}
-            title="Siguiente"
-          >
-            <span aria-hidden="true">{'>>'}</span>
           </button>
         </div>
         <div className="mini-player-progress">

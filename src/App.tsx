@@ -306,13 +306,9 @@ function App() {
         </div>
       </div>
       <MiniPlayer
-        canGoNext={canGoNext}
-        canGoPrevious={canGoPrevious}
         currentTime={currentTime}
         isPlaying={isPlaying}
-        onNext={nextTrack}
         onOpenFullPlayer={openFullPlayer}
-        onPrevious={previousTrack}
         onSeek={seekTo}
         onTogglePlayback={togglePlayback}
         playbackContext={playbackContext}

@@ -55,18 +55,18 @@
   color-scheme: light;
   --bg-primary:
     radial-gradient(circle at 14% 16%, rgba(16, 131, 214, 0.08), transparent 22%),
-    radial-gradient(circle at 86% 10%, rgba(160, 167, 172, 0.1), transparent 18%),
-    linear-gradient(180deg, #f4f6f8 0%, #edf1f4 100%);
-  --bg-secondary: #e8edf1;
-  --card-bg: #f1f4f7;
+    radial-gradient(circle at 86% 10%, rgba(181, 188, 194, 0.16), transparent 20%),
+    linear-gradient(180deg, #a0a7ac 0%, #959ea4 100%);
+  --bg-secondary: #aab1b6;
+  --card-bg: #b5bcc2;
   --text-primary: #2a3b47;
   --text-secondary: #697477;
   --accent: #1083d6;
   --border-color: rgba(42, 59, 71, 0.08);
   --hover-bg: #e3e8ec;
   --page-sheen: rgba(255, 255, 255, 0.38);
-  --panel: #edf1f4;
-  --panel-strong: #e6ebef;
+  --panel: #b1b8be;
+  --panel-strong: #bcc4c9;
   --panel-soft: rgba(17, 24, 39, 0.03);
   --border: rgba(42, 59, 71, 0.08);
   --border-strong: rgba(42, 59, 71, 0.14);
@@ -76,14 +76,14 @@
   --surface-glow-a: rgba(16, 131, 214, 0.08);
   --surface-glow-b: rgba(160, 167, 172, 0.08);
   --sidebar-bg:
-    linear-gradient(180deg, rgba(235, 239, 243, 0.94) 0%, rgba(229, 234, 238, 0.98) 100%);
+    linear-gradient(180deg, rgba(173, 180, 185, 0.96) 0%, rgba(163, 170, 176, 0.98) 100%);
   --hero-bg:
     radial-gradient(circle at 22% 18%, rgba(16, 131, 214, 0.08), transparent 22%),
-    linear-gradient(180deg, #f0f3f6 0%, #e8edf1 100%);
-  --mini-player-bg: #eef2f5;
+    linear-gradient(180deg, #b1b8be 0%, #a7afb5 100%);
+  --mini-player-bg: #adb5ba;
   --primary-button-bg: linear-gradient(180deg, #2c96e0 0%, #1083d6 100%);
   --primary-button-text: #f6fbff;
-  --secondary-button-bg: #e5eaee;
+  --secondary-button-bg: #bcc3c8;
   --secondary-button-text: #2a3b47;
   --secondary-button-border: rgba(42, 59, 71, 0.08);
   --art-border: rgba(42, 59, 71, 0.08);
@@ -91,9 +91,9 @@
   --ring-fill: rgba(42, 59, 71, 0.03);
   --brand-mark-bg:
     radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.48), transparent 18%),
-    linear-gradient(145deg, #d5dde4 0%, #bcc8d1 45%, #edf1f4 100%);
+    linear-gradient(145deg, #c7ced3 0%, #afb8bf 45%, #d1d7db 100%);
   --featured-panel-bg:
-    linear-gradient(135deg, rgba(238, 242, 245, 0.98), rgba(231, 236, 240, 0.95));
+    linear-gradient(135deg, rgba(188, 196, 201, 0.98), rgba(177, 185, 191, 0.95));
   --elevated-shadow: 0 16px 38px rgba(42, 59, 71, 0.12);
   --light-base-shadow: 0 10px 24px rgba(42, 59, 71, 0.05);
   --light-card-shadow:
@@ -493,6 +493,14 @@ button {
   background: var(--card-bg);
 }
 
+.library-song-row-main {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
 .library-song-meta {
   display: flex;
   align-items: center;
@@ -527,6 +535,27 @@ button {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.library-icon-button {
+  min-width: 42px;
+  padding-inline: 0;
+  justify-content: center;
+}
+
+.library-edit-panel {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color);
+}
+
+.library-edit-actions {
+  display: flex;
+  align-items: end;
+  gap: 10px;
 }
 
 .favorite-button {
@@ -625,21 +654,22 @@ button {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(320px, 1.05fr) minmax(320px, 440px);
+  grid-template-columns: 1fr minmax(210px, 240px);
   gap: 28px;
-  align-items: center;
+  align-items: start;
   min-height: 100%;
 }
 
-.home-control-stack {
+.home-main-column {
   display: grid;
-  gap: 18px;
+  justify-items: center;
+  gap: 22px;
 }
 
 .home-control-panel {
   border-radius: 30px;
-  padding: 24px;
-  border: 1px solid var(--border-color);
+  padding: 18px 20px;
+  border: 1px solid transparent;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
     var(--card-bg);
@@ -648,7 +678,13 @@ button {
 
 .home-transport-panel {
   display: grid;
-  gap: 22px;
+  width: min(100%, 520px);
+  justify-items: center;
+  gap: 16px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
 }
 
 .home-panel-header,
@@ -668,31 +704,40 @@ button {
 }
 
 .home-song-copy h1 {
-  font-size: clamp(2rem, 3vw, 2.8rem);
-  line-height: 1;
+  font-size: clamp(1.5rem, 2.2vw, 2.05rem);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 18ch;
+  text-align: center;
 }
 
 .home-song-artist {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 1rem;
+  font-size: 0.96rem;
+  text-align: center;
 }
 
 .home-source-badge {
   display: inline-flex;
-  justify-self: start;
+  justify-self: center;
   align-items: center;
-  padding: 8px 12px;
+  padding: 7px 11px;
   border-radius: 999px;
   color: var(--text-soft);
   background: var(--secondary-button-bg);
   border: 1px solid var(--secondary-button-border);
+  font-size: 0.78rem;
 }
 
 .home-transport-controls {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .home-icon-button,
@@ -704,15 +749,15 @@ button {
 }
 
 .home-icon-button {
-  width: 46px;
-  height: 46px;
+  width: 42px;
+  height: 42px;
   color: var(--secondary-button-text);
   background: var(--secondary-button-bg);
 }
 
 .home-play-button {
-  width: 66px;
-  height: 66px;
+  width: 58px;
+  height: 58px;
   color: var(--primary-button-text);
   background: var(--primary-button-bg);
   border: 0;
@@ -721,6 +766,7 @@ button {
 .home-progress-panel {
   display: grid;
   gap: 12px;
+  width: min(100%, 420px);
 }
 
 .home-progress-meta {
@@ -742,9 +788,20 @@ button {
 
 .home-vinyl-stage {
   position: relative;
-  min-height: 560px;
+  min-height: 500px;
   display: grid;
   place-items: center;
+  width: 100%;
+  transform: translateY(-12px);
+}
+
+.home-vinyl-backdrop {
+  position: absolute;
+  inset: 14% 18%;
+  border-radius: 50%;
+  filter: blur(56px) saturate(0.8);
+  opacity: 0.18;
+  transform: scale(1.08);
 }
 
 .home-vinyl-atmosphere {
@@ -776,7 +833,7 @@ button {
 
 .home-vinyl-disc {
   position: relative;
-  width: min(62vw, 480px);
+  width: min(56vw, 460px);
   aspect-ratio: 1;
   border-radius: 50%;
   background:
@@ -847,12 +904,46 @@ button {
 
 .home-eq-panel {
   display: grid;
-  gap: 20px;
+  gap: 16px;
+  align-self: center;
+  padding: 18px;
+  border-radius: 26px;
+  width: min(100%, 240px);
+  position: absolute;
+  top: 64px;
+  right: 0;
+  z-index: 2;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
+}
+
+.home-settings-dock {
+  position: relative;
+  justify-self: end;
+  align-self: start;
+  width: 100%;
+  display: grid;
+  justify-items: end;
+}
+
+.home-settings-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--secondary-button-border);
+  color: var(--secondary-button-text);
+  background: var(--secondary-button-bg);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+}
+
+.home-settings-trigger-active {
+  background: var(--hover-bg);
 }
 
 .home-volume-block {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .home-slider-copy {
@@ -865,6 +956,7 @@ button {
 .home-slider-copy strong,
 .home-eq-band strong {
   font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .home-slider-copy span,
@@ -874,24 +966,28 @@ button {
 
 .home-eq-bands {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }
 
 .home-eq-band {
   display: grid;
-  gap: 10px;
-  padding: 16px;
-  border-radius: 22px;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 18px;
   border: 1px solid var(--border-color);
   background: var(--panel-soft);
 }
 
 .home-eq-band span {
   color: var(--text-soft);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.home-eq-band strong {
+  font-size: 0.82rem;
 }
 
 .home-control-empty {
@@ -1555,10 +1651,11 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
   border-radius: 28px;
-  padding: 16px 18px;
+  padding: 14px 16px;
   background: var(--mini-player-bg);
+  backdrop-filter: blur(18px);
 }
 
 .mini-player-track,
@@ -1583,9 +1680,9 @@ button {
 
 .mini-player-center {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   justify-items: center;
-  min-width: min(460px, 100%);
+  min-width: min(320px, 100%);
 }
 
 .mini-player-progress {
@@ -1617,7 +1714,7 @@ button {
   display: grid;
   gap: 6px;
   justify-items: end;
-  min-width: 160px;
+  min-width: 140px;
   text-align: right;
 }
 
@@ -1626,9 +1723,9 @@ button {
 }
 
 .mini-player-cover {
-  width: 64px;
-  height: 64px;
-  border-radius: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
   flex-shrink: 0;
   border: 1px solid var(--art-border);
 }
@@ -1647,7 +1744,7 @@ button {
 }
 
 .mini-player-controls {
-  gap: 10px;
+  gap: 8px;
 }
 
 .player-secondary-button,
@@ -1656,22 +1753,22 @@ button {
 }
 
 .player-secondary-button {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   color: var(--secondary-button-text);
   background: var(--secondary-button-bg);
   border: 1px solid var(--secondary-button-border);
 }
 
 .mini-player-controls > button:not(.player-secondary-button) {
-  padding: 12px 22px;
+  padding: 10px 18px;
   color: var(--primary-button-text);
   background: var(--primary-button-bg);
 }
 
 .mini-player-primary-icon {
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   display: grid;
   place-items: center;
   padding: 0 !important;
@@ -2015,9 +2112,9 @@ button {
 
 :root[data-theme='light'] body::before {
   background:
-    radial-gradient(circle at 18% 22%, rgba(16, 131, 214, 0.06), transparent 24%),
-    radial-gradient(circle at 82% 14%, rgba(160, 167, 172, 0.08), transparent 20%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 32%);
+    radial-gradient(circle at 18% 22%, rgba(16, 131, 214, 0.05), transparent 24%),
+    radial-gradient(circle at 82% 14%, rgba(181, 188, 194, 0.1), transparent 20%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 28%);
 }
 
 :root[data-theme='light'] .app-shell {
@@ -2031,9 +2128,9 @@ button {
   pointer-events: none;
   border-radius: 36px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 18%),
-    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.18), transparent 34%);
-  opacity: 0.6;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 18%),
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.1), transparent 34%);
+  opacity: 0.4;
 }
 
 :root[data-theme='light'] .sidebar,
@@ -2072,29 +2169,29 @@ button {
 :root[data-theme='light'] .theme-toggle,
 :root[data-theme='light'] .collection-button:hover,
 :root[data-theme='light'] .nav-button:hover {
-  background: #e3e8ec;
+  background: #bcc3c8;
 }
 
 :root[data-theme='light'] .playlist-card,
 :root[data-theme='light'] .recent-song-item,
 :root[data-theme='light'] .playlist-detail-row {
-  background: #f1f4f7;
+  background: #b5bcc2;
   box-shadow: var(--light-card-shadow);
 }
 
 :root[data-theme='light'] .home-curation-card,
 :root[data-theme='light'] .library-summary-card,
 :root[data-theme='light'] .playlist-detail-section {
-  background: #edf1f4;
+  background: #afb7bc;
   box-shadow: inset 0 1px 0 var(--light-surface-edge);
 }
 
 :root[data-theme='light'] .home-control-hero,
 :root[data-theme='light'] .home-control-empty {
   background:
-    radial-gradient(circle at 18% 22%, rgba(16, 131, 214, 0.07), transparent 24%),
-    radial-gradient(circle at 84% 18%, rgba(160, 167, 172, 0.08), transparent 20%),
-    linear-gradient(180deg, rgba(238, 242, 245, 0.98) 0%, rgba(230, 235, 239, 0.99) 100%);
+    radial-gradient(circle at 18% 22%, rgba(16, 131, 214, 0.06), transparent 24%),
+    radial-gradient(circle at 84% 18%, rgba(181, 188, 194, 0.12), transparent 20%),
+    linear-gradient(180deg, rgba(181, 188, 194, 0.98) 0%, rgba(167, 175, 181, 0.99) 100%);
 }
 
 :root[data-theme='light'] .sidebar,
@@ -2111,7 +2208,7 @@ button {
 
 :root[data-theme='light'] .sidebar {
   background:
-    linear-gradient(180deg, rgba(232, 237, 241, 0.98) 0%, rgba(226, 231, 235, 0.99) 100%);
+    linear-gradient(180deg, rgba(176, 183, 189, 0.98) 0%, rgba(166, 173, 179, 0.99) 100%);
   border-color: rgba(42, 59, 71, 0.07);
   box-shadow:
     0 12px 30px rgba(42, 59, 71, 0.07),
@@ -2120,7 +2217,7 @@ button {
 
 :root[data-theme='light'] .hero-card {
   background:
-    linear-gradient(180deg, rgba(241, 244, 247, 0.98) 0%, rgba(233, 238, 242, 0.98) 100%);
+    linear-gradient(180deg, rgba(184, 191, 196, 0.98) 0%, rgba(172, 179, 185, 0.98) 100%);
   border-color: rgba(42, 59, 71, 0.06);
 }
 
@@ -2136,21 +2233,21 @@ button {
 
 :root[data-theme='light'] .home-hero {
   background:
-    radial-gradient(circle at 18% 24%, rgba(16, 131, 214, 0.07), transparent 24%),
-    radial-gradient(circle at 82% 14%, rgba(160, 167, 172, 0.08), transparent 18%),
-    linear-gradient(180deg, rgba(241, 244, 247, 0.98) 0%, rgba(233, 238, 242, 0.98) 100%);
+    radial-gradient(circle at 18% 24%, rgba(16, 131, 214, 0.06), transparent 24%),
+    radial-gradient(circle at 82% 14%, rgba(181, 188, 194, 0.1), transparent 18%),
+    linear-gradient(180deg, rgba(184, 191, 196, 0.98) 0%, rgba(172, 179, 185, 0.98) 100%);
 }
 
 :root[data-theme='light'] .library-hero {
   background:
-    linear-gradient(180deg, rgba(239, 243, 246, 0.98) 0%, rgba(231, 236, 240, 0.98) 100%);
+    linear-gradient(180deg, rgba(181, 188, 194, 0.98) 0%, rgba(170, 177, 183, 0.98) 100%);
 }
 
 :root[data-theme='light'] .playlists-overview-hero {
   background:
-    radial-gradient(circle at 20% 22%, rgba(16, 131, 214, 0.06), transparent 22%),
-    radial-gradient(circle at 84% 20%, rgba(160, 167, 172, 0.08), transparent 18%),
-    linear-gradient(180deg, rgba(239, 243, 246, 0.98) 0%, rgba(231, 236, 240, 0.98) 100%);
+    radial-gradient(circle at 20% 22%, rgba(16, 131, 214, 0.05), transparent 22%),
+    radial-gradient(circle at 84% 20%, rgba(181, 188, 194, 0.1), transparent 18%),
+    linear-gradient(180deg, rgba(181, 188, 194, 0.98) 0%, rgba(170, 177, 183, 0.98) 100%);
 }
 
 :root[data-theme='light'] .brand,
@@ -2200,7 +2297,7 @@ button {
 
 :root[data-theme='light'] .playlist-card:hover,
 :root[data-theme='light'] .recent-song-item:hover {
-  background: #edf1f4;
+  background: #bcc4c9;
   box-shadow: 0 14px 28px rgba(42, 59, 71, 0.08);
 }
 
@@ -2243,13 +2340,13 @@ button {
 :root[data-theme='light'] .home-control-panel,
 :root[data-theme='light'] .home-empty-stat {
   background:
-    linear-gradient(180deg, rgba(243, 246, 248, 0.98) 0%, rgba(236, 240, 243, 0.98) 100%);
+    linear-gradient(180deg, rgba(190, 197, 202, 0.98) 0%, rgba(180, 187, 193, 0.98) 100%);
   border-color: rgba(42, 59, 71, 0.06);
   box-shadow: var(--light-card-shadow);
 }
 
 :root[data-theme='light'] .home-icon-button {
-  background: #e5eaee;
+  background: #bcc3c8;
 }
 
 :root[data-theme='light'] .home-vinyl-aura-primary {
@@ -2263,9 +2360,9 @@ button {
 :root[data-theme='light'] .home-vinyl-disc,
 :root[data-theme='light'] .home-empty-vinyl {
   background:
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.34) 0 7%, transparent 7% 100%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.22) 0 7%, transparent 7% 100%),
     radial-gradient(circle at 50% 50%, rgba(42, 59, 71, 0.03) 0 28%, transparent 29% 100%),
-    linear-gradient(145deg, #d7dfe6 0%, #edf1f4 42%, #c8d1d8 100%);
+    linear-gradient(145deg, #b1b8be 0%, #c0c7cc 42%, #9ba4aa 100%);
   border-color: rgba(42, 59, 71, 0.08);
   box-shadow:
     inset 0 0 0 6px rgba(255, 255, 255, 0.26),
@@ -2284,12 +2381,12 @@ button {
 
 :root[data-theme='light'] .home-vinyl-core,
 :root[data-theme='light'] .home-empty-vinyl-core {
-  background: rgba(232, 237, 241, 0.96);
+  background: rgba(202, 210, 215, 0.96);
   border-color: rgba(42, 59, 71, 0.12);
 }
 
 :root[data-theme='light'] .home-eq-band {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 :root[data-theme='light'] .library-filter-bar {
@@ -2313,7 +2410,7 @@ button {
 
 :root[data-theme='light'] .mini-player {
   background:
-    linear-gradient(180deg, rgba(240, 244, 247, 0.98) 0%, rgba(232, 237, 241, 0.98) 100%);
+    linear-gradient(180deg, rgba(181, 188, 194, 0.98) 0%, rgba(171, 178, 184, 0.98) 100%);
   box-shadow: var(--light-floating-shadow);
   border-color: rgba(42, 59, 71, 0.08);
 }
@@ -2390,8 +2487,12 @@ button {
 }
 
 :root[data-theme='light'] .library-song-row {
-  background: #f1f4f7;
+  background: #b5bcc2;
   box-shadow: var(--light-card-shadow);
+}
+
+:root[data-theme='light'] .library-edit-panel {
+  border-top-color: rgba(42, 59, 71, 0.08);
 }
 
 :root[data-theme='light'] .library-danger-button {
@@ -2401,11 +2502,11 @@ button {
 }
 
 :root[data-theme='light'] .playlist-song-select select {
-  background: #eef2f5;
+  background: #bcc3c8;
 }
 
 :root[data-theme='light'] .library-import-panel {
-  background: #f1f4f7;
+  background: #b5bcc2;
   box-shadow: var(--light-card-shadow);
 }
 
@@ -2449,6 +2550,15 @@ button {
     flex-wrap: wrap;
   }
 
+  .library-song-row-main,
+  .library-edit-panel,
+  .library-edit-actions {
+    width: 100%;
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .playlist-detail-toolbar-actions {
     width: 100%;
   }
@@ -2477,8 +2587,8 @@ button {
     width: min(82vw, 380px);
   }
 
-  .home-eq-bands {
-    grid-template-columns: 1fr;
+  .home-eq-panel {
+    max-width: 100%;
   }
 
   .playlist-detail-hero {

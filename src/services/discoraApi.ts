@@ -247,6 +247,18 @@ export async function deleteSong(songId: EntityId): Promise<void> {
   });
 }
 
+export async function updateSong(
+  songId: EntityId,
+  payload: { artist: string; title: string },
+): Promise<Song> {
+  const response = await request<unknown>(`/songs/${songId}`, {
+    body: payload,
+    method: 'PATCH',
+  });
+
+  return normalizeSong(unwrapResponseData(response), 0);
+}
+
 export async function uploadSong(payload: { artist?: string; file: File; title?: string }): Promise<void> {
   const formData = new FormData();
   const derivedTitle = payload.file.name.replace(/\.[^/.]+$/, '').trim();

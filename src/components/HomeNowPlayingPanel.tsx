@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { EqualizerState, PlaybackContext, Song } from '../types';
 import { EmptyPlaybackState } from './EmptyPlaybackState';
 import { EqualizerPanel } from './EqualizerPanel';
@@ -43,6 +44,8 @@ export function HomeNowPlayingPanel({
   selectedTrack,
   volume,
 }: HomeNowPlayingPanelProps) {
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   if (!selectedTrack) {
     return <EmptyPlaybackState libraryCount={libraryCount} playlistCount={playlistCount} />;
   }
@@ -53,8 +56,8 @@ export function HomeNowPlayingPanel({
         <div className="hero-atmosphere hero-atmosphere-left" />
         <div className="hero-atmosphere hero-atmosphere-right" />
         <div className="home-control-layout">
-          <VinylControlCenter isPlaying={isPlaying} song={selectedTrack} />
-          <div className="home-control-stack">
+          <div className="home-main-column">
+            <VinylControlCenter isPlaying={isPlaying} song={selectedTrack} />
             <PlaybackControlPanel
               canGoNext={canGoNext}
               canGoPrevious={canGoPrevious}
@@ -68,13 +71,15 @@ export function HomeNowPlayingPanel({
               playbackDuration={playbackDuration}
               song={selectedTrack}
             />
-            <EqualizerPanel
-              value={equalizer}
-              volume={volume}
-              onChange={onEqualizerChange}
-              onVolumeChange={onVolumeChange}
-            />
           </div>
+          <EqualizerPanel
+            isOpen={isSettingsOpen}
+            value={equalizer}
+            volume={volume}
+            onChange={onEqualizerChange}
+            onToggleOpen={() => setIsSettingsOpen((current) => !current)}
+            onVolumeChange={onVolumeChange}
+          />
         </div>
       </section>
     </main>

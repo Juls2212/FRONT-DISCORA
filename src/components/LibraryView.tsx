@@ -1,6 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { FavoriteButton } from './FavoriteButton';
-import { deleteSong, getSongs, searchSongs, uploadSong } from '../services/discoraApi';
+import { deleteSong, getSongs, searchSongs, updateSong, uploadSong } from '../services/discoraApi';
 import { PlaybackContext, Song, SongPresentationState } from '../types';
 import { extractEmbeddedCover, readImageFileAsDataUrl } from '../utils/mp3Metadata';
 import { decorateSongs, getCoverSurfaceStyle } from '../utils/songPresentation';
@@ -40,6 +40,10 @@ export function LibraryView({
   const [uploadMessage, setUploadMessage] = useState('Selecciona un archivo MP3 para importarlo a tu biblioteca.');
   const [deletingId, setDeletingId] = useState<Song['id'] | null>(null);
   const [coverTargetSongId, setCoverTargetSongId] = useState<Song['id'] | null>(null);
+  const [editingSongId, setEditingSongId] = useState<Song['id'] | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [editingArtist, setEditingArtist] = useState('');
+  const [savingSongId, setSavingSongId] = useState<Song['id'] | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -214,6 +218,45 @@ export function LibraryView({
     }
   };
 
+  const handleStartRename = (song: Song) => {
+    setEditingSongId(song.id);
+    setEditingTitle(song.title);
+    setEditingArtist(song.artist);
+    setError(null);
+  };
+
+  const handleCancelRename = () => {
+    setEditingSongId(null);
+    setEditingTitle('');
+    setEditingArtist('');
+  };
+
+  const handleSaveRename = async (songId: Song['id']) => {
+    const nextTitle = editingTitle.trim();
+    const nextArtist = editingArtist.trim();
+
+    if (!nextTitle || !nextArtist) {
+      setError('Completa titulo y artista para guardar los cambios.');
+      return;
+    }
+
+    setSavingSongId(songId);
+    setError(null);
+
+    try {
+      await updateSong(songId, {
+        artist: nextArtist,
+        title: nextTitle,
+      });
+      await loadSongs();
+      handleCancelRename();
+    } catch {
+      setError('No se pudo actualizar la cancion.');
+    } finally {
+      setSavingSongId(null);
+    }
+  };
+
   const handleCoverSelection = (songId: Song['id']) => {
     setCoverTargetSongId(songId);
     coverInputRef.current?.click();
@@ -380,39 +423,88 @@ export function LibraryView({
           <div className="library-song-list">
             {filteredSongs.map((song) => (
               <article key={song.id} className="library-song-row">
-                <button
-                  className="library-song-meta"
-                  type="button"
-                  onClick={() => onPlayTrack(song, { type: 'library' }, displayedSongs)}
-                >
-                  <div className="library-song-cover" style={getCoverSurfaceStyle(song.cover)} />
-                  <div>
-                    <h3>{song.title}</h3>
-                    <p>{song.artist} - {song.album}</p>
-                  </div>
-                </button>
-                <div className="library-song-actions">
-                  <span>{song.duration}</span>
-                  <FavoriteButton isActive={Boolean(song.isFavorite)} onClick={() => onToggleFavorite(song.id)} />
-                  <button className="library-secondary-button" type="button" onClick={() => handleCoverSelection(song.id)}>
-                    Portada
-                  </button>
+                <div className="library-song-row-main">
                   <button
-                    className="library-secondary-button"
+                    className="library-song-meta"
                     type="button"
                     onClick={() => onPlayTrack(song, { type: 'library' }, displayedSongs)}
                   >
-                    Reproducir
+                    <div className="library-song-cover" style={getCoverSurfaceStyle(song.cover)} />
+                    <div>
+                      <h3>{song.title}</h3>
+                      <p>{song.artist} - {song.album}</p>
+                    </div>
                   </button>
-                  <button
-                    className="library-danger-button"
-                    type="button"
-                    onClick={() => handleDeleteSong(song.id)}
-                    disabled={deletingId === song.id}
-                  >
-                    {deletingId === song.id ? 'Eliminando...' : 'Eliminar'}
-                  </button>
+                  <div className="library-song-actions">
+                    <span>{song.duration}</span>
+                    <FavoriteButton isActive={Boolean(song.isFavorite)} onClick={() => onToggleFavorite(song.id)} />
+                    <button
+                      className="library-secondary-button library-icon-button"
+                      type="button"
+                      onClick={() => handleStartRename(song)}
+                      aria-label={`Editar ${song.title}`}
+                    >
+                      <span aria-hidden="true">✎</span>
+                    </button>
+                    <button
+                      className="library-secondary-button"
+                      type="button"
+                      onClick={() => handleCoverSelection(song.id)}
+                    >
+                      Portada
+                    </button>
+                    <button
+                      className="library-secondary-button"
+                      type="button"
+                      onClick={() => onPlayTrack(song, { type: 'library' }, displayedSongs)}
+                    >
+                      Reproducir
+                    </button>
+                    <button
+                      className="library-danger-button"
+                      type="button"
+                      onClick={() => handleDeleteSong(song.id)}
+                      disabled={deletingId === song.id}
+                    >
+                      {deletingId === song.id ? 'Eliminando...' : 'Eliminar'}
+                    </button>
+                  </div>
                 </div>
+                {editingSongId === song.id ? (
+                  <div className="library-edit-panel">
+                    <label className="library-search">
+                      <span>Titulo</span>
+                      <input
+                        type="text"
+                        value={editingTitle}
+                        onChange={(event) => setEditingTitle(event.target.value)}
+                        placeholder="Nuevo titulo"
+                      />
+                    </label>
+                    <label className="library-search">
+                      <span>Artista</span>
+                      <input
+                        type="text"
+                        value={editingArtist}
+                        onChange={(event) => setEditingArtist(event.target.value)}
+                        placeholder="Nuevo artista"
+                      />
+                    </label>
+                    <div className="library-edit-actions">
+                      <button
+                        className="library-primary-button"
+                        type="button"
+                        onClick={() => handleSaveRename(song.id)}
+                        disabled={savingSongId === song.id}
+                      >
+                        {savingSongId === song.id ? 'Guardando...' : 'Guardar'}
+                      </button>
+                      <button className="library-secondary-button" type="button" onClick={handleCancelRename}>
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>

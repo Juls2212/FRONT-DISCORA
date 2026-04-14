@@ -7,8 +7,11 @@ type VinylControlCenterProps = {
 };
 
 export function VinylControlCenter({ isPlaying, song }: VinylControlCenterProps) {
+  const artworkBackground = getArtworkBackground(song.cover);
+
   return (
     <section className="home-vinyl-stage" aria-label="Visual principal de reproduccion">
+      <div className="home-vinyl-backdrop" style={{ background: artworkBackground }} />
       <div className="home-vinyl-atmosphere">
         <div className="home-vinyl-aura home-vinyl-aura-primary" />
         <div className="home-vinyl-aura home-vinyl-aura-secondary" />
@@ -18,7 +21,7 @@ export function VinylControlCenter({ isPlaying, song }: VinylControlCenterProps)
         <div className="home-vinyl-groove home-vinyl-groove-one" />
         <div className="home-vinyl-groove home-vinyl-groove-two" />
         <div className="home-vinyl-groove home-vinyl-groove-three" />
-        <div className="home-vinyl-label" style={{ background: getArtworkBackground(song.cover) }}>
+        <div className="home-vinyl-label" style={{ background: artworkBackground }}>
           <div className="home-vinyl-core" />
         </div>
       </div>
