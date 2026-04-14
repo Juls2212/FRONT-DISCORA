@@ -7,7 +7,6 @@ import {
   moveSongDownInPlaylist,
   moveSongUpInPlaylist,
   removeSongFromPlaylist,
-  setCurrentSongInPlaylist,
 } from '../services/discoraApi';
 import { FavoriteButton } from './FavoriteButton';
 import { decorateSong, getCoverSurfaceStyle } from '../utils/songPresentation';
@@ -49,8 +48,9 @@ export function PlaylistsView({
   const [addingSong, setAddingSong] = useState(false);
   const [deletingPlaylistId, setDeletingPlaylistId] = useState<Playlist['id'] | null>(null);
   const [removingNodeId, setRemovingNodeId] = useState<Playlist['id'] | null>(null);
-  const [movingNodeId, setMovingNodeId] = useState<Playlist['id'] | null>(null);
-  const [settingCurrentNodeId, setSettingCurrentNodeId] = useState<Playlist['id'] | null>(null);
+  const [persistingReorder, setPersistingReorder] = useState(false);
+  const [draggedNodeId, setDraggedNodeId] = useState<Playlist['id'] | null>(null);
+  const [dragOverNodeId, setDragOverNodeId] = useState<Playlist['id'] | null>(null);
 
   const presentationState: SongPresentationState = useMemo(
     () => ({
@@ -69,6 +69,10 @@ export function PlaylistsView({
   const availableSongs = songs.filter(
     (song) => !displayedPlaylistSongs.some((entry) => entry.song.id === song.id),
   );
+
+  const selectedPlaylistSummary = selectedPlaylistId
+    ? playlists.find((playlist) => playlist.id === selectedPlaylistId) ?? null
+    : null;
 
   const getPlaylistPlaybackContext = (): PlaybackContext | null => {
     if (!playlistDetail) {
@@ -100,12 +104,7 @@ export function PlaylistsView({
     if (!playlists.length) {
       setSelectedPlaylistId(null);
       setPlaylistDetail(null);
-      return;
     }
-
-    setSelectedPlaylistId((currentId) =>
-      currentId && playlists.some((playlist) => playlist.id === currentId) ? currentId : playlists[0].id,
-    );
   }, [playlists]);
 
   useEffect(() => {
@@ -115,6 +114,20 @@ export function PlaylistsView({
 
     void loadPlaylistDetail(selectedPlaylistId);
   }, [selectedPlaylistId]);
+
+  const handleOpenPlaylist = (playlistId: Playlist['id']) => {
+    setSelectedPlaylistId(playlistId);
+    setPlaylistDetail(null);
+    setDetailError(null);
+    setSelectedSongId('');
+  };
+
+  const handleBackToPlaylists = () => {
+    setSelectedPlaylistId(null);
+    setPlaylistDetail(null);
+    setDetailError(null);
+    setSelectedSongId('');
+  };
 
   const handleCreatePlaylist = async () => {
     const trimmedName = createName.trim();
@@ -130,9 +143,9 @@ export function PlaylistsView({
     try {
       const nextPlaylist = await createPlaylist({ name: trimmedName });
       await onRefreshPlaylists();
-      setSelectedPlaylistId(nextPlaylist.id);
       setCreateName('');
       setActionMessage('Playlist creada correctamente.');
+      handleOpenPlaylist(nextPlaylist.id);
     } catch {
       setActionMessage('No se pudo crear la playlist.');
     } finally {
@@ -148,6 +161,10 @@ export function PlaylistsView({
       await deletePlaylist(playlistId);
       await onRefreshPlaylists();
       setActionMessage('Playlist eliminada correctamente.');
+
+      if (selectedPlaylistId === playlistId) {
+        handleBackToPlaylists();
+      }
     } catch {
       setActionMessage('No se pudo eliminar la playlist.');
     } finally {
@@ -197,65 +214,256 @@ export function PlaylistsView({
     }
   };
 
-  const handleMoveSongUp = async (nodeId: Playlist['id']) => {
-    if (!playlistDetail) {
+  const handleDragStart = (nodeId: Playlist['id']) => {
+    setDraggedNodeId(nodeId);
+    setDragOverNodeId(nodeId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedNodeId(null);
+    setDragOverNodeId(null);
+  };
+
+  const reorderSongs = (nodeId: Playlist['id'], targetNodeId: Playlist['id']) => {
+    if (!playlistDetail || nodeId === targetNodeId) {
+      return null;
+    }
+
+    const sourceIndex = playlistDetail.songs.findIndex((entry) => entry.nodeId === nodeId);
+    const targetIndex = playlistDetail.songs.findIndex((entry) => entry.nodeId === targetNodeId);
+
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
+      return null;
+    }
+
+    const nextSongs = [...playlistDetail.songs];
+    const [movedEntry] = nextSongs.splice(sourceIndex, 1);
+    nextSongs.splice(targetIndex, 0, movedEntry);
+
+    return {
+      nextSongs,
+      sourceIndex,
+      targetIndex,
+    };
+  };
+
+  const persistReorder = async (nodeId: Playlist['id'], sourceIndex: number, targetIndex: number) => {
+    if (!playlistDetail || sourceIndex === targetIndex) {
       return;
     }
 
-    setMovingNodeId(nodeId);
+    setPersistingReorder(true);
     setActionMessage(null);
 
     try {
-      const nextDetail = await moveSongUpInPlaylist(playlistDetail.id, nodeId);
-      setPlaylistDetail(nextDetail);
+      const moveSong = sourceIndex > targetIndex ? moveSongUpInPlaylist : moveSongDownInPlaylist;
+      const moves = Math.abs(sourceIndex - targetIndex);
+
+      for (let index = 0; index < moves; index += 1) {
+        await moveSong(playlistDetail.id, nodeId);
+      }
+
+      await loadPlaylistDetail(playlistDetail.id);
       await onRefreshPlaylists();
-      setActionMessage('Cancion movida hacia arriba.');
+      setActionMessage('Orden actualizado correctamente.');
     } catch {
-      setActionMessage('No se pudo mover la cancion hacia arriba.');
+      await loadPlaylistDetail(playlistDetail.id);
+      setActionMessage('No se pudo actualizar el orden de la playlist.');
     } finally {
-      setMovingNodeId(null);
+      setPersistingReorder(false);
+      handleDragEnd();
     }
   };
 
-  const handleMoveSongDown = async (nodeId: Playlist['id']) => {
-    if (!playlistDetail) {
-      return;
-    }
+  if (selectedPlaylistId) {
+    return (
+      <main className="main-content">
+        <section className="hero-card playlists-hero">
+          <div className="hero-atmosphere hero-atmosphere-left" />
+          <div className="hero-atmosphere hero-atmosphere-right" />
+          <div className="playlist-detail-hero">
+            <button className="playlist-back-button" type="button" onClick={handleBackToPlaylists}>
+              Volver a playlists
+            </button>
+            <div
+              className="playlist-detail-hero-cover"
+              style={{ background: selectedPlaylistSummary?.artwork ?? 'linear-gradient(145deg, #52627d 0%, #202739 100%)' }}
+            >
+              <div className="playlist-ring" />
+            </div>
+            <div className="playlist-detail-hero-copy">
+              <p className="eyebrow">Playlist</p>
+              <h1>{playlistDetail?.name ?? selectedPlaylistSummary?.name ?? 'Abriendo playlist'}</h1>
+              <p className="hero-copy">
+                {playlistDetail?.detail ??
+                  selectedPlaylistSummary?.detail ??
+                  'Una seleccion curada para seguir escuchando en Discora.'}
+              </p>
+              <span className="playlist-detail-meta-line">
+                {playlistDetail?.songCount ?? selectedPlaylistSummary?.songCount ?? 0} canciones
+              </span>
+            </div>
+          </div>
+        </section>
 
-    setMovingNodeId(nodeId);
-    setActionMessage(null);
+        {actionMessage ? <p className="playlist-feedback">{actionMessage}</p> : null}
 
-    try {
-      const nextDetail = await moveSongDownInPlaylist(playlistDetail.id, nodeId);
-      setPlaylistDetail(nextDetail);
-      await onRefreshPlaylists();
-      setActionMessage('Cancion movida hacia abajo.');
-    } catch {
-      setActionMessage('No se pudo mover la cancion hacia abajo.');
-    } finally {
-      setMovingNodeId(null);
-    }
-  };
+        <SectionContainer
+          title={playlistDetail?.name ?? selectedPlaylistSummary?.name ?? 'Detalle de playlist'}
+          subtitle={playlistDetail ? `${playlistDetail.songCount} canciones` : 'Cargando canciones'}
+        >
+          {detailLoading ? (
+            <StateMessage
+              title="Abriendo playlist"
+              description="Discora esta cargando las canciones de esta playlist."
+            />
+          ) : null}
+          {!detailLoading && detailError ? (
+            <StateMessage title="No fue posible abrir la playlist" description={detailError} />
+          ) : null}
+          {!detailLoading && !detailError && playlistDetail ? (
+            <div className="playlist-detail-panel">
+              <div className="playlist-detail-toolbar">
+                <label className="library-search playlist-song-select">
+                  <span>Agregar cancion</span>
+                  <select value={selectedSongId} onChange={(event) => setSelectedSongId(event.target.value)}>
+                    <option value="">Selecciona una cancion de la biblioteca</option>
+                    {availableSongs.map((song) => (
+                      <option key={song.id} value={String(song.id)}>
+                        {song.title} - {song.artist}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="playlist-detail-toolbar-actions">
+                  <button className="library-primary-button" type="button" onClick={handleAddSong} disabled={addingSong}>
+                    {addingSong ? 'Agregando...' : 'Agregar a playlist'}
+                  </button>
+                  <button
+                    className="library-danger-button"
+                    type="button"
+                    onClick={() => handleDeletePlaylist(playlistDetail.id)}
+                    disabled={deletingPlaylistId === playlistDetail.id}
+                  >
+                    {deletingPlaylistId === playlistDetail.id ? 'Eliminando...' : 'Eliminar playlist'}
+                  </button>
+                </div>
+              </div>
 
-  const handleSetCurrentSong = async (nodeId: Playlist['id']) => {
-    if (!playlistDetail) {
-      return;
-    }
+              {displayedPlaylistSongs.length === 0 ? (
+                <StateMessage
+                  title="Esta playlist esta vacia"
+                  description="Agrega canciones desde la biblioteca para verla completa."
+                />
+              ) : (
+                <div className="playlist-detail-list">
+                  {displayedPlaylistSongs.map((entry) => (
+                    <article
+                      key={entry.nodeId}
+                      className={`playlist-detail-row${playlistDetail.currentNodeId === entry.nodeId ? ' playlist-detail-row-current' : ''}${draggedNodeId === entry.nodeId ? ' playlist-detail-row-dragging' : ''}${dragOverNodeId === entry.nodeId && draggedNodeId !== entry.nodeId ? ' playlist-detail-row-drop-target' : ''}`}
+                      draggable={!persistingReorder}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData('text/plain', String(entry.nodeId));
+                        handleDragStart(entry.nodeId);
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        if (!persistingReorder && draggedNodeId && draggedNodeId !== entry.nodeId) {
+                          event.dataTransfer.dropEffect = 'move';
+                          setDragOverNodeId(entry.nodeId);
+                        }
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
 
-    setSettingCurrentNodeId(nodeId);
-    setActionMessage(null);
+                        if (persistingReorder || !draggedNodeId || draggedNodeId === entry.nodeId || !playlistDetail) {
+                          return;
+                        }
 
-    try {
-      const nextDetail = await setCurrentSongInPlaylist(playlistDetail.id, nodeId);
-      setPlaylistDetail(nextDetail);
-      await onRefreshPlaylists();
-      setActionMessage('Cancion actual actualizada.');
-    } catch {
-      setActionMessage('No se pudo marcar la cancion actual.');
-    } finally {
-      setSettingCurrentNodeId(null);
-    }
-  };
+                        const result = reorderSongs(draggedNodeId, entry.nodeId);
+
+                        if (!result) {
+                          handleDragEnd();
+                          return;
+                        }
+
+                        setPlaylistDetail({
+                          ...playlistDetail,
+                          songs: result.nextSongs,
+                        });
+                        void persistReorder(draggedNodeId, result.sourceIndex, result.targetIndex);
+                      }}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <button
+                        className="playlist-detail-meta"
+                        type="button"
+                        onClick={() => {
+                          const context = getPlaylistPlaybackContext();
+
+                          if (context) {
+                            onPlayTrack(
+                              entry.song,
+                              context,
+                              displayedPlaylistSongs.map((playlistSong) => playlistSong.song),
+                            );
+                          }
+                        }}
+                      >
+                        <div className="playlist-detail-cover" style={getCoverSurfaceStyle(entry.song.cover)} />
+                        <div>
+                          <h3>{entry.song.title}</h3>
+                          <p>{entry.song.artist} - {entry.song.album}</p>
+                          {playlistDetail.currentNodeId === entry.nodeId ? (
+                            <span className="playlist-current-badge">Actual</span>
+                          ) : null}
+                        </div>
+                      </button>
+                      <div className="playlist-detail-actions">
+                        <span className="playlist-drag-indicator" aria-hidden="true">
+                          ≡
+                        </span>
+                        <span>{entry.song.duration}</span>
+                        <FavoriteButton isActive={Boolean(entry.song.isFavorite)} onClick={() => onToggleFavorite(entry.song.id)} />
+                        <button
+                          className="library-secondary-button"
+                          type="button"
+                          onClick={() => {
+                            const context = getPlaylistPlaybackContext();
+
+                            if (context) {
+                              onPlayTrack(
+                                entry.song,
+                                context,
+                                displayedPlaylistSongs.map((playlistSong) => playlistSong.song),
+                              );
+                            }
+                          }}
+                          aria-label={`Reproducir ${entry.song.title}`}
+                        >
+                          ▶
+                        </button>
+                        <button
+                          className="library-danger-button playlist-remove-button"
+                          type="button"
+                          onClick={() => handleRemoveSong(entry.nodeId)}
+                          disabled={removingNodeId === entry.nodeId}
+                          aria-label={`Quitar ${entry.song.title}`}
+                        >
+                          {removingNodeId === entry.nodeId ? '...' : '×'}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </SectionContainer>
+      </main>
+    );
+  }
 
   return (
     <main className="main-content">
@@ -266,7 +474,7 @@ export function PlaylistsView({
           <p className="eyebrow">Playlists</p>
           <h1>Gestiona tus playlists</h1>
           <p className="hero-copy">
-            Crea playlists, revisa sus canciones y administra el orden real definido por el backend.
+            Crea playlists, revisa su identidad y entra a cada una como una vista propia.
           </p>
         </div>
         <div className="playlist-create-panel">
@@ -306,158 +514,8 @@ export function PlaylistsView({
         {!playlistsLoading && !playlistsError && playlists.length > 0 ? (
           <div className="playlist-grid">
             {playlists.map((playlist) => (
-              <PlaylistCard
-                key={playlist.id}
-                playlist={playlist}
-                isActive={playlist.id === selectedPlaylistId}
-                onClick={() => setSelectedPlaylistId(playlist.id)}
-              />
+              <PlaylistCard key={playlist.id} playlist={playlist} onClick={() => handleOpenPlaylist(playlist.id)} />
             ))}
-          </div>
-        ) : null}
-      </SectionContainer>
-
-      <SectionContainer
-        title={playlistDetail?.name ?? 'Detalle de playlist'}
-        subtitle={playlistDetail ? `${playlistDetail.songCount} canciones` : 'Selecciona una playlist'}
-      >
-        {detailLoading ? (
-          <StateMessage
-            title="Abriendo playlist"
-            description="Discora esta cargando las canciones de esta playlist."
-          />
-        ) : null}
-        {!detailLoading && detailError ? (
-          <StateMessage title="No fue posible abrir la playlist" description={detailError} />
-        ) : null}
-        {!detailLoading && !detailError && !playlistDetail ? (
-          <StateMessage
-            title="Selecciona una playlist"
-            description="Elige una playlist para ver su detalle."
-          />
-        ) : null}
-        {!detailLoading && !detailError && playlistDetail ? (
-          <div className="playlist-detail-panel">
-            <div className="playlist-detail-toolbar">
-              <label className="library-search playlist-song-select">
-                <span>Agregar cancion</span>
-                <select value={selectedSongId} onChange={(event) => setSelectedSongId(event.target.value)}>
-                  <option value="">Selecciona una cancion de la biblioteca</option>
-                  {availableSongs.map((song) => (
-                    <option key={song.id} value={String(song.id)}>
-                      {song.title} - {song.artist}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="playlist-detail-toolbar-actions">
-                <button className="library-primary-button" type="button" onClick={handleAddSong} disabled={addingSong}>
-                  {addingSong ? 'Agregando...' : 'Agregar a playlist'}
-                </button>
-                <button
-                  className="library-danger-button"
-                  type="button"
-                  onClick={() => handleDeletePlaylist(playlistDetail.id)}
-                  disabled={deletingPlaylistId === playlistDetail.id}
-                >
-                  {deletingPlaylistId === playlistDetail.id ? 'Eliminando...' : 'Eliminar playlist'}
-                </button>
-              </div>
-            </div>
-
-            {displayedPlaylistSongs.length === 0 ? (
-              <StateMessage
-                title="Esta playlist esta vacia"
-                description="Agrega canciones desde la biblioteca para verla completa."
-              />
-            ) : (
-              <div className="playlist-detail-list">
-                {displayedPlaylistSongs.map((entry, index) => (
-                  <article
-                    key={entry.nodeId}
-                    className={`playlist-detail-row${playlistDetail.currentNodeId === entry.nodeId ? ' playlist-detail-row-current' : ''}`}
-                  >
-                    <button
-                      className="playlist-detail-meta"
-                      type="button"
-                      onClick={() => {
-                        const context = getPlaylistPlaybackContext();
-
-                        if (context) {
-                          onPlayTrack(
-                            entry.song,
-                            context,
-                            displayedPlaylistSongs.map((playlistSong) => playlistSong.song),
-                          );
-                        }
-                      }}
-                    >
-                      <div className="playlist-detail-cover" style={getCoverSurfaceStyle(entry.song.cover)} />
-                      <div>
-                        <h3>{entry.song.title}</h3>
-                        <p>{entry.song.artist} - {entry.song.album}</p>
-                        {playlistDetail.currentNodeId === entry.nodeId ? (
-                          <span className="playlist-current-badge">Actual</span>
-                        ) : null}
-                      </div>
-                    </button>
-                    <div className="playlist-detail-actions">
-                      <span>{entry.song.duration}</span>
-                      <FavoriteButton isActive={Boolean(entry.song.isFavorite)} onClick={() => onToggleFavorite(entry.song.id)} />
-                      <button
-                        className="library-secondary-button"
-                        type="button"
-                        onClick={() => handleMoveSongUp(entry.nodeId)}
-                        disabled={movingNodeId === entry.nodeId || index === 0}
-                      >
-                        {movingNodeId === entry.nodeId ? 'Moviendo...' : 'Subir'}
-                      </button>
-                      <button
-                        className="library-secondary-button"
-                        type="button"
-                        onClick={() => handleMoveSongDown(entry.nodeId)}
-                        disabled={movingNodeId === entry.nodeId || index === displayedPlaylistSongs.length - 1}
-                      >
-                        {movingNodeId === entry.nodeId ? 'Moviendo...' : 'Bajar'}
-                      </button>
-                      <button
-                        className="library-secondary-button"
-                        type="button"
-                        onClick={() => handleSetCurrentSong(entry.nodeId)}
-                        disabled={settingCurrentNodeId === entry.nodeId || playlistDetail.currentNodeId === entry.nodeId}
-                      >
-                        {settingCurrentNodeId === entry.nodeId ? 'Guardando...' : 'Marcar actual'}
-                      </button>
-                      <button
-                        className="library-secondary-button"
-                        type="button"
-                        onClick={() => {
-                          const context = getPlaylistPlaybackContext();
-
-                          if (context) {
-                            onPlayTrack(
-                              entry.song,
-                              context,
-                              displayedPlaylistSongs.map((playlistSong) => playlistSong.song),
-                            );
-                          }
-                        }}
-                      >
-                        Escuchar
-                      </button>
-                      <button
-                        className="library-danger-button"
-                        type="button"
-                        onClick={() => handleRemoveSong(entry.nodeId)}
-                        disabled={removingNodeId === entry.nodeId}
-                      >
-                        {removingNodeId === entry.nodeId ? 'Quitando...' : 'Quitar'}
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
           </div>
         ) : null}
       </SectionContainer>
