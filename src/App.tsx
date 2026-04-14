@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FullPlayer } from './components/FullPlayer';
 import { LibraryView } from './components/LibraryView';
 import { MainContent } from './components/MainContent';
 import { MiniPlayer } from './components/MiniPlayer';
 import { PlaylistsView } from './components/PlaylistsView';
 import { Sidebar } from './components/Sidebar';
+import { usePlayback } from './context/PlaybackProvider';
 import { getPlaylists, getSongs } from './services/discoraApi';
-import { PlaybackContext, Playlist, Song, SongPresentationState } from './types';
+import { Playlist, Song, SongPresentationState } from './types';
 import { decorateSong, decorateSongs, getSongIdKey } from './utils/songPresentation';
 import { needsDurationResolution, resolveSongDuration } from './utils/audio';
 
@@ -37,8 +38,25 @@ function readStorageArray(storageKey: string): string[] {
 }
 
 function App() {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const {
+    canGoNext,
+    canGoPrevious,
+    closeFullPlayer,
+    currentTime,
+    isFullPlayerOpen,
+    isPlaying,
+    nextTrack,
+    openFullPlayer,
+    playbackContext,
+    playbackDuration,
+    playTrack,
+    previousTrack,
+    seekTo,
+    selectedTrack,
+    syncLibrarySongs,
+    togglePlayback,
+  } = usePlayback();
+
   const [theme, setTheme] = useState<Theme>('dark');
   const [songs, setSongs] = useState<Song[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -46,13 +64,7 @@ function App() {
   const [playlistsLoading, setPlaylistsLoading] = useState(true);
   const [songsError, setSongsError] = useState<string | null>(null);
   const [playlistsError, setPlaylistsError] = useState<string | null>(null);
-  const [selectedTrack, setSelectedTrack] = useState<Song | null>(null);
   const [activeView, setActiveView] = useState<ViewName>('home');
-  const [currentTime, setCurrentTime] = useState(0);
-  const [playbackDuration, setPlaybackDuration] = useState(0);
-  const [playbackContext, setPlaybackContext] = useState<PlaybackContext | null>(null);
-  const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);
-  const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
   const [favoriteSongIds, setFavoriteSongIds] = useState<string[]>(() => readStorageArray(FAVORITES_STORAGE_KEY));
   const [manualCoverBySongId, setManualCoverBySongId] = useState<Record<string, string>>(
     () => readStorageRecord(MANUAL_COVERS_STORAGE_KEY),
@@ -76,17 +88,6 @@ function App() {
     [presentationState, selectedTrack],
   );
 
-  const currentTrackIndex = useMemo(() => {
-    if (!selectedTrack) {
-      return -1;
-    }
-
-    return playbackQueue.findIndex((song) => song.id === selectedTrack.id);
-  }, [playbackQueue, selectedTrack]);
-
-  const canGoPrevious = currentTrackIndex > 0;
-  const canGoNext = currentTrackIndex >= 0 && currentTrackIndex < playbackQueue.length - 1;
-
   useEffect(() => {
     window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favoriteSongIds));
   }, [favoriteSongIds]);
@@ -106,9 +107,7 @@ function App() {
     try {
       const nextSongs = await getSongs();
       setSongs(nextSongs);
-      setSelectedTrack((currentTrack) => currentTrack ?? nextSongs[0] ?? null);
-      setPlaybackContext((currentContext) => currentContext ?? (nextSongs[0] ? { type: 'library' } : null));
-      setPlaybackQueue((currentQueue) => (currentQueue.length ? currentQueue : nextSongs));
+      syncLibrarySongs(nextSongs);
     } catch {
       setSongsError('No se pudieron cargar las canciones.');
     } finally {
@@ -147,66 +146,6 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
-    const audio = new Audio();
-    audioRef.current = audio;
-
-    const handleEnded = () => {
-      if (currentTrackIndex >= 0 && currentTrackIndex < playbackQueue.length - 1) {
-        setSelectedTrack(playbackQueue[currentTrackIndex + 1]);
-        setCurrentTime(0);
-        setIsPlaying(true);
-        return;
-      }
-
-      setIsPlaying(false);
-      setCurrentTime(0);
-    };
-
-    const handleError = () => {
-      console.error('Discora playback error', {
-        audioUrl: audio.currentSrc,
-        selectedTrack,
-      });
-      setIsPlaying(false);
-    };
-
-    const handlePlay = () => {
-      setIsPlaying(true);
-    };
-
-    const handlePause = () => {
-      setIsPlaying(false);
-    };
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-
-    const handleLoadedMetadata = () => {
-      setPlaybackDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
-    };
-
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('pause', handlePause);
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('durationchange', handleLoadedMetadata);
-
-    return () => {
-      audio.pause();
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('durationchange', handleLoadedMetadata);
-    };
-  }, [currentTrackIndex, playbackQueue, selectedTrack]);
-
-  useEffect(() => {
     void loadSongs();
     void loadPlaylists();
   }, []);
@@ -243,92 +182,21 @@ function App() {
         return;
       }
 
-      setSongs((currentSongs) =>
-        currentSongs.map((song) =>
+      setSongs((currentSongs) => {
+        const nextSongs = currentSongs.map((song) =>
           resolvedDurations.has(song.id)
             ? { ...song, duration: resolvedDurations.get(song.id) ?? song.duration }
             : song,
-        ),
-      );
-
-      setPlaybackQueue((currentQueue) =>
-        currentQueue.map((song) =>
-          resolvedDurations.has(song.id)
-            ? { ...song, duration: resolvedDurations.get(song.id) ?? song.duration }
-            : song,
-        ),
-      );
-
-      setSelectedTrack((currentTrack) =>
-        currentTrack && resolvedDurations.has(currentTrack.id)
-          ? { ...currentTrack, duration: resolvedDurations.get(currentTrack.id) ?? currentTrack.duration }
-          : currentTrack,
-      );
+        );
+        syncLibrarySongs(nextSongs);
+        return nextSongs;
+      });
     });
 
     return () => {
       active = false;
     };
-  }, [songs]);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-
-    if (!audio) {
-      return;
-    }
-
-    if (!selectedTrack?.audioUrl) {
-      audio.pause();
-      audio.removeAttribute('src');
-      audio.load();
-      setIsPlaying(false);
-      setCurrentTime(0);
-      setPlaybackDuration(0);
-      return;
-    }
-
-    if (audio.src !== selectedTrack.audioUrl) {
-      audio.src = selectedTrack.audioUrl;
-      audio.load();
-      setCurrentTime(0);
-    }
-
-    if (!isPlaying) {
-      audio.pause();
-      return;
-    }
-
-    void audio.play().catch((error) => {
-      console.error('Discora playback start failed', {
-        audioUrl: selectedTrack.audioUrl,
-        error,
-        selectedTrack,
-      });
-      setIsPlaying(false);
-    });
-  }, [isPlaying, selectedTrack]);
-
-  const handleTogglePlayback = () => {
-    const audio = audioRef.current;
-
-    if (!selectedTrack || !audio) {
-      return;
-    }
-
-    if (audio.paused) {
-      void audio.play().catch((error) => {
-        console.error('Discora playback resume failed', {
-          audioUrl: selectedTrack.audioUrl,
-          error,
-          selectedTrack,
-        });
-      });
-      return;
-    }
-
-    audio.pause();
-  };
+  }, [songs, syncLibrarySongs]);
 
   const handleToggleTheme = () => {
     setTheme((previousTheme) => (previousTheme === 'dark' ? 'light' : 'dark'));
@@ -336,61 +204,7 @@ function App() {
 
   const handleSongsReload = (nextSongs: Song[]) => {
     setSongs(nextSongs);
-    setSelectedTrack((currentTrack) => {
-      if (!nextSongs.length) {
-        return null;
-      }
-
-      if (currentTrack) {
-        return nextSongs.find((song) => song.id === currentTrack.id) ?? nextSongs[0];
-      }
-
-      return nextSongs[0];
-    });
-
-    setPlaybackQueue((currentQueue) =>
-      currentQueue.length && playbackContext?.type === 'playlist' ? currentQueue : nextSongs,
-    );
-  };
-
-  const handlePlayTrack = (song: Song, context: PlaybackContext, queue?: Song[]) => {
-    setSelectedTrack(song);
-    setPlaybackContext(context);
-    setPlaybackQueue(queue?.length ? queue : [song]);
-    setCurrentTime(0);
-    setIsPlaying(true);
-    setIsFullPlayerOpen(true);
-  };
-
-  const handleSeek = (nextTime: number) => {
-    const audio = audioRef.current;
-
-    if (!audio) {
-      return;
-    }
-
-    audio.currentTime = nextTime;
-    setCurrentTime(nextTime);
-  };
-
-  const handlePreviousTrack = () => {
-    if (!canGoPrevious) {
-      return;
-    }
-
-    setSelectedTrack(playbackQueue[currentTrackIndex - 1] ?? null);
-    setCurrentTime(0);
-    setIsPlaying(true);
-  };
-
-  const handleNextTrack = () => {
-    if (!canGoNext) {
-      return;
-    }
-
-    setSelectedTrack(playbackQueue[currentTrackIndex + 1] ?? null);
-    setCurrentTime(0);
-    setIsPlaying(true);
+    syncLibrarySongs(nextSongs);
   };
 
   const handleToggleFavorite = (songId: Song['id']) => {
@@ -446,7 +260,7 @@ function App() {
               manualCoverBySongId={manualCoverBySongId}
               onAssignEmbeddedCover={handleAssignEmbeddedCover}
               onAssignManualCover={handleAssignManualCover}
-              onPlayTrack={handlePlayTrack}
+              onPlayTrack={playTrack}
               onSongsReload={handleSongsReload}
               onToggleFavorite={handleToggleFavorite}
             />
@@ -459,13 +273,13 @@ function App() {
               playlistsError={playlistsError}
               playlistsLoading={playlistsLoading}
               songs={displayedSongs}
-              onPlayTrack={handlePlayTrack}
+              onPlayTrack={playTrack}
               onRefreshPlaylists={loadPlaylists}
               onToggleFavorite={handleToggleFavorite}
             />
           ) : (
             <MainContent
-              onPlayTrack={handlePlayTrack}
+              onPlayTrack={playTrack}
               playlists={playlists}
               playlistsError={playlistsError}
               playlistsLoading={playlistsLoading}
@@ -481,11 +295,11 @@ function App() {
         canGoPrevious={canGoPrevious}
         currentTime={currentTime}
         isPlaying={isPlaying}
-        onNext={handleNextTrack}
-        onOpenFullPlayer={() => setIsFullPlayerOpen(true)}
-        onPrevious={handlePreviousTrack}
-        onSeek={handleSeek}
-        onTogglePlayback={handleTogglePlayback}
+        onNext={nextTrack}
+        onOpenFullPlayer={openFullPlayer}
+        onPrevious={previousTrack}
+        onSeek={seekTo}
+        onTogglePlayback={togglePlayback}
         playbackContext={playbackContext}
         playbackDuration={playbackDuration}
         selectedTrack={displayedSelectedTrack}
@@ -496,16 +310,16 @@ function App() {
         currentTime={currentTime}
         isOpen={isFullPlayerOpen}
         isPlaying={isPlaying}
-        onClose={() => setIsFullPlayerOpen(false)}
-        onNext={handleNextTrack}
-        onPrevious={handlePreviousTrack}
-        onSeek={handleSeek}
+        onClose={closeFullPlayer}
+        onNext={nextTrack}
+        onPrevious={previousTrack}
+        onSeek={seekTo}
         onToggleFavorite={() => {
           if (displayedSelectedTrack) {
             handleToggleFavorite(displayedSelectedTrack.id);
           }
         }}
-        onTogglePlayback={handleTogglePlayback}
+        onTogglePlayback={togglePlayback}
         playbackContext={playbackContext}
         playbackDuration={playbackDuration}
         selectedTrack={displayedSelectedTrack}
