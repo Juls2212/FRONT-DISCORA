@@ -1,11 +1,12 @@
-import { EqualizerState } from '../types';
+import { EqualizerState, MixerState } from '../types';
+import { RotaryKnob } from './RotaryKnob';
 
 type EqualizerPanelProps = {
-  isOpen: boolean;
+  mixer: MixerState;
   value: EqualizerState;
   volume: number;
   onChange: (nextValue: EqualizerState) => void;
-  onToggleOpen: () => void;
+  onMixerChange: (nextValue: MixerState) => void;
   onVolumeChange: (volume: number) => void;
 };
 
@@ -17,45 +18,27 @@ const bandLabels: Record<BandKey, string> = {
   treble: 'Treble',
 };
 
-export function EqualizerPanel({
-  isOpen,
-  value,
-  volume,
-  onChange,
-  onToggleOpen,
-  onVolumeChange,
-}: EqualizerPanelProps) {
+export function EqualizerPanel({ mixer, value, volume, onChange, onMixerChange, onVolumeChange }: EqualizerPanelProps) {
   const bands = Object.keys(bandLabels) as BandKey[];
+  const deckAWeight = Math.max(0, 1 - mixer.crossfader / 100);
+  const deckBWeight = Math.max(0, mixer.crossfader / 100);
 
   return (
     <aside className="home-settings-dock">
-      <button
-        className={`home-settings-trigger${isOpen ? ' home-settings-trigger-active' : ''}`}
-        type="button"
-        onClick={onToggleOpen}
-        aria-expanded={isOpen}
-        aria-controls="home-settings-panel"
-      >
-        <span aria-hidden="true">🎛️</span>
-        <span>Ajustes</span>
-      </button>
-
-      {isOpen ? (
-        <section className="home-control-panel home-eq-panel" id="home-settings-panel">
-          <div className="home-panel-header">
-            <div>
-              <p className="eyebrow">Control</p>
-              <h2>Cabina de mezcla</h2>
-            </div>
-            <span>Sonido fino</span>
+      <section className="home-eq-panel home-mixer-panel" aria-label="Cabina de mezcla">
+        <div className="home-panel-header home-panel-header-mixer">
+          <div>
+            <p className="eyebrow">Mixer</p>
+            <h2>Cabina</h2>
           </div>
+          <span>EQ</span>
+        </div>
 
-          <div className="home-volume-block">
-            <div className="home-slider-copy">
-              <strong>Volumen</strong>
-              <span>{Math.round(volume * 100)}%</span>
-            </div>
+        <div className="home-mixer-columns">
+          <label className="home-mixer-channel home-mixer-channel-master">
+            <span>Master</span>
             <input
+              className="home-mixer-slider"
               type="range"
               min={0}
               max={100}
@@ -64,32 +47,89 @@ export function EqualizerPanel({
               onChange={(event) => onVolumeChange(Number(event.target.value) / 100)}
               aria-label="Volumen"
             />
-          </div>
+            <strong>{Math.round(volume * 100)}</strong>
+          </label>
 
-          <div className="home-eq-bands">
-            {bands.map((band) => (
-              <label key={band} className="home-eq-band">
-                <span>{bandLabels[band]}</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={value[band]}
-                  onChange={(event) =>
-                    onChange({
-                      ...value,
-                      [band]: Number(event.target.value),
-                    })
-                  }
-                  aria-label={bandLabels[band]}
-                />
-                <strong>{value[band]}</strong>
-              </label>
-            ))}
+          {bands.map((band) => (
+            <label key={band} className="home-mixer-channel">
+              <span>{bandLabels[band]}</span>
+              <input
+                className="home-mixer-slider"
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={value[band]}
+                onChange={(event) =>
+                  onChange({
+                    ...value,
+                    [band]: Number(event.target.value),
+                  })
+                }
+                aria-label={bandLabels[band]}
+              />
+              <strong>{value[band]}</strong>
+            </label>
+          ))}
+
+          <div className="home-mixer-channel home-mixer-channel-filter">
+            <span>Filtro</span>
+            <RotaryKnob
+              ariaLabel="Filtro"
+              label="Filtro"
+              value={mixer.filter}
+              onChange={(filter) =>
+                onMixerChange({
+                  ...mixer,
+                  filter,
+                })
+              }
+            />
+            <strong>{mixer.filter}</strong>
           </div>
-        </section>
-      ) : null}
+        </div>
+
+        <div className="home-mixer-knobs">
+          <RotaryKnob
+            ariaLabel="Ganancia"
+            label="Gain"
+            value={mixer.gain}
+            onChange={(gain) =>
+              onMixerChange({
+                ...mixer,
+                gain,
+              })
+            }
+          />
+        </div>
+
+        <div className="home-crossfader-panel">
+          <div className="home-crossfader-header">
+            <span>A</span>
+            <strong>Crossfader</strong>
+            <span>B</span>
+          </div>
+          <input
+            className="home-crossfader-slider"
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={mixer.crossfader}
+            onChange={(event) =>
+              onMixerChange({
+                ...mixer,
+                crossfader: Number(event.target.value),
+              })
+            }
+            aria-label="Crossfader"
+          />
+          <div className="home-crossfader-meta">
+            <span>Deck A {Math.round(deckAWeight * 100)}%</span>
+            <span>Deck B {Math.round(deckBWeight * 100)}%</span>
+          </div>
+        </div>
+      </section>
     </aside>
   );
 }

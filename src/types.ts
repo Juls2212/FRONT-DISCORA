@@ -67,6 +67,21 @@ export type EqualizerState = {
   treble: number;
 };
 
+export type MixerState = {
+  crossfader: number;
+  filter: number;
+  gain: number;
+};
+
+export type DeckState = {
+  cuePoint: number | null;
+  loopEnabled: boolean;
+  loopInPoint: number | null;
+  loopOutPoint: number | null;
+  slipMode: boolean;
+  vinylMode: boolean;
+};
+
 export type SongPresentationState = {
   embeddedCoverBySongId: Record<string, string>;
   favoriteSongIds: string[];

@@ -8,6 +8,7 @@ type VinylControlCenterProps = {
 
 export function VinylControlCenter({ isPlaying, song }: VinylControlCenterProps) {
   const artworkBackground = getArtworkBackground(song.cover);
+  const waveformBars = Array.from({ length: 18 }, (_, index) => 28 + ((index * 17) % 42));
 
   return (
     <section className="home-vinyl-stage" aria-label="Visual principal de reproduccion">
@@ -24,6 +25,15 @@ export function VinylControlCenter({ isPlaying, song }: VinylControlCenterProps)
         <div className="home-vinyl-label" style={{ background: artworkBackground }}>
           <div className="home-vinyl-core" />
         </div>
+      </div>
+      <div className="home-waveform" aria-hidden="true">
+        {waveformBars.map((height, index) => (
+          <span
+            key={height + index}
+            className={`home-waveform-bar${isPlaying ? ' home-waveform-bar-active' : ''}`}
+            style={{ height: `${height}%`, animationDelay: `${index * 45}ms` }}
+          />
+        ))}
       </div>
     </section>
   );

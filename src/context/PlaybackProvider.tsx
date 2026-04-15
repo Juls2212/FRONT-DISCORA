@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { EqualizerState, PlaybackContext, Song } from '../types';
+import { DeckState, EqualizerState, MixerState, PlaybackContext, Song } from '../types';
 
 declare global {
   interface Window {
@@ -82,9 +82,11 @@ type PlaybackStore = {
   canGoNext: boolean;
   canGoPrevious: boolean;
   currentTime: number;
+  deckState: DeckState;
   equalizer: EqualizerState;
   isFullPlayerOpen: boolean;
   isPlaying: boolean;
+  mixer: MixerState;
   playbackError: string | null;
   playbackContext: PlaybackContext | null;
   playbackDuration: number;
@@ -97,10 +99,14 @@ type PlaybackStore = {
   openFullPlayer: () => void;
   playTrack: (song: Song, context: PlaybackContext, queue?: Song[]) => void;
   previousTrack: () => void;
+  setCuePoint: (time?: number) => void;
+  setDeckState: (deckState: DeckState) => void;
   setEqualizer: (equalizer: EqualizerState) => void;
+  setMixer: (mixer: MixerState) => void;
   setVolume: (volume: number) => void;
   seekTo: (time: number) => void;
   syncLibrarySongs: (songs: Song[]) => void;
+  toggleLoop: () => void;
   togglePlayback: () => void;
 };
 
@@ -126,10 +132,19 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   const bassFilterRef = useRef<BiquadFilterNode | null>(null);
   const midFilterRef = useRef<BiquadFilterNode | null>(null);
   const trebleFilterRef = useRef<BiquadFilterNode | null>(null);
+  const filterNodeRef = useRef<BiquadFilterNode | null>(null);
   const selectedTrackRef = useRef<Song | null>(null);
   const playbackQueueRef = useRef<Song[]>([]);
   const playbackContextRef = useRef<PlaybackContext | null>(null);
   const unavailableSongIdsRef = useRef<string[]>([]);
+  const deckStateRef = useRef<DeckState>({
+    cuePoint: null,
+    loopEnabled: false,
+    loopInPoint: null,
+    loopOutPoint: null,
+    slipMode: false,
+    vinylMode: true,
+  });
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<Song | null>(null);
@@ -146,6 +161,12 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
     mid: 48,
     treble: 57,
   });
+  const [mixer, setMixerState] = useState<MixerState>({
+    crossfader: 50,
+    filter: 50,
+    gain: 50,
+  });
+  const [deckState, setDeckStateState] = useState<DeckState>(deckStateRef.current);
 
   const currentTrackIndex = useMemo(() => {
     if (!selectedTrack) {
@@ -177,6 +198,10 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     unavailableSongIdsRef.current = unavailableSongIds;
   }, [unavailableSongIds]);
+
+  useEffect(() => {
+    deckStateRef.current = deckState;
+  }, [deckState]);
 
   const markSongUnavailable = useCallback((song: Song, reason: string) => {
     if (song.sourceType !== 'youtube') {
@@ -283,6 +308,20 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
     const nextDuration = youtubePlayer.getDuration();
 
     if (Number.isFinite(nextCurrentTime)) {
+      const loopOutPoint = deckStateRef.current.loopEnabled ? deckStateRef.current.loopOutPoint : null;
+      const loopInPoint = deckStateRef.current.loopInPoint;
+
+      if (
+        loopOutPoint !== null &&
+        loopInPoint !== null &&
+        nextCurrentTime >= loopOutPoint &&
+        loopOutPoint > loopInPoint
+      ) {
+        youtubePlayer.seekTo(loopInPoint, true);
+        setCurrentTime(loopInPoint);
+        return;
+      }
+
       setCurrentTime(nextCurrentTime);
     }
 
@@ -451,6 +490,15 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
                 return;
               }
 
+              if (deckStateRef.current.loopEnabled) {
+                const restartTime = deckStateRef.current.loopInPoint ?? 0;
+                youtubePlayerRef.current?.seekTo(restartTime, true);
+                youtubePlayerRef.current?.playVideo();
+                setCurrentTime(restartTime);
+                setIsPlaying(true);
+                return;
+              }
+
               setIsPlaying(false);
               setCurrentTime(0);
             }
@@ -495,6 +543,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         const bassFilter = audioContext.createBiquadFilter();
         const midFilter = audioContext.createBiquadFilter();
         const trebleFilter = audioContext.createBiquadFilter();
+        const filterNode = audioContext.createBiquadFilter();
         const gainNode = audioContext.createGain();
 
         bassFilter.type = 'lowshelf';
@@ -510,7 +559,8 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         mediaSource.connect(bassFilter);
         bassFilter.connect(midFilter);
         midFilter.connect(trebleFilter);
-        trebleFilter.connect(gainNode);
+        trebleFilter.connect(filterNode);
+        filterNode.connect(gainNode);
         gainNode.connect(audioContext.destination);
 
         audioContextRef.current = audioContext;
@@ -519,6 +569,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         bassFilterRef.current = bassFilter;
         midFilterRef.current = midFilter;
         trebleFilterRef.current = trebleFilter;
+        filterNodeRef.current = filterNode;
       } else {
         audio.volume = volume;
       }
@@ -546,6 +597,15 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         return;
       }
 
+      if (deckStateRef.current.loopEnabled) {
+        const restartTime = deckStateRef.current.loopInPoint ?? 0;
+        audio.currentTime = restartTime;
+        setCurrentTime(restartTime);
+        setIsPlaying(true);
+        void audio.play();
+        return;
+      }
+
       setIsPlaying(false);
       setCurrentTime(0);
     };
@@ -569,6 +629,15 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
     };
 
     const handleTimeUpdate = () => {
+      const nextTime = audio.currentTime;
+      const { loopEnabled, loopInPoint, loopOutPoint } = deckStateRef.current;
+
+      if (loopEnabled && loopInPoint !== null && loopOutPoint !== null && loopOutPoint > loopInPoint && nextTime >= loopOutPoint) {
+        audio.currentTime = loopInPoint;
+        setCurrentTime(loopInPoint);
+        return;
+      }
+
       setCurrentTime(audio.currentTime);
     };
 
@@ -594,6 +663,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       youtubePlayerRef.current?.destroy?.();
       gainNodeRef.current?.disconnect();
       trebleFilterRef.current?.disconnect();
+      filterNodeRef.current?.disconnect();
       midFilterRef.current?.disconnect();
       bassFilterRef.current?.disconnect();
       mediaSourceRef.current?.disconnect();
@@ -611,23 +681,26 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const audio = audioRef.current;
     const youtubePlayer = youtubePlayerRef.current;
+    const crossfadeFactor = mixer.crossfader <= 50 ? 1 : 1 - (mixer.crossfader - 50) / 50;
+    const gainFactor = 0.7 + (mixer.gain / 100) * 0.6;
+    const effectiveVolume = Math.min(1, Math.max(0, volume * crossfadeFactor * gainFactor));
 
     if (!audio) {
       return;
     }
 
     if (selectedTrackRef.current?.sourceType === 'youtube' && youtubePlayer) {
-      youtubePlayer.setVolume(Math.round(volume * 100));
+      youtubePlayer.setVolume(Math.round(effectiveVolume * 100));
       return;
     }
 
     if (gainNodeRef.current) {
-      gainNodeRef.current.gain.value = volume;
+      gainNodeRef.current.gain.value = effectiveVolume;
       return;
     }
 
-    audio.volume = volume;
-  }, [volume]);
+    audio.volume = effectiveVolume;
+  }, [mixer.crossfader, mixer.gain, volume]);
 
   useEffect(() => {
     const mapBandValue = (value: number) => ((value - 50) / 50) * 12;
@@ -644,6 +717,29 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       trebleFilterRef.current.gain.value = mapBandValue(equalizer.treble);
     }
   }, [equalizer]);
+
+  useEffect(() => {
+    if (!filterNodeRef.current) {
+      return;
+    }
+
+    const filterValue = mixer.filter;
+
+    if (filterValue === 50) {
+      filterNodeRef.current.type = 'allpass';
+      filterNodeRef.current.frequency.value = 1200;
+      return;
+    }
+
+    if (filterValue < 50) {
+      filterNodeRef.current.type = 'lowpass';
+      filterNodeRef.current.frequency.value = 800 + (filterValue / 50) * 19200;
+      return;
+    }
+
+    filterNodeRef.current.type = 'highpass';
+    filterNodeRef.current.frequency.value = 40 + ((filterValue - 50) / 50) * 4000;
+  }, [mixer.filter]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -999,6 +1095,43 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
     });
   }, []);
 
+  const setMixer = useCallback((nextMixer: MixerState) => {
+    setMixerState({
+      crossfader: Math.min(100, Math.max(0, nextMixer.crossfader)),
+      filter: Math.min(100, Math.max(0, nextMixer.filter)),
+      gain: Math.min(100, Math.max(0, nextMixer.gain)),
+    });
+  }, []);
+
+  const setDeckState = useCallback((nextDeckState: DeckState) => {
+    setDeckStateState({
+      cuePoint: nextDeckState.cuePoint,
+      loopEnabled: nextDeckState.loopEnabled,
+      loopInPoint: nextDeckState.loopInPoint,
+      loopOutPoint: nextDeckState.loopOutPoint,
+      slipMode: nextDeckState.slipMode,
+      vinylMode: nextDeckState.vinylMode,
+    });
+  }, []);
+
+  const setCuePoint = useCallback((time?: number) => {
+    setDeckStateState((currentDeckState) => ({
+      ...currentDeckState,
+      cuePoint: typeof time === 'number' ? time : currentTime,
+    }));
+  }, [currentTime]);
+
+  const toggleLoop = useCallback(() => {
+    setDeckStateState((currentDeckState) => ({
+      ...currentDeckState,
+      loopEnabled: !currentDeckState.loopEnabled,
+      loopInPoint: currentDeckState.loopInPoint ?? 0,
+      loopOutPoint:
+        currentDeckState.loopOutPoint ??
+        (playbackDuration > 0 ? playbackDuration : null),
+    }));
+  }, [playbackDuration]);
+
   const previousTrack = useCallback(() => {
     const currentSong = selectedTrackRef.current;
     const queue = playbackQueueRef.current;
@@ -1065,9 +1198,11 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       canGoPrevious,
       closeFullPlayer: () => setIsFullPlayerOpen(false),
       currentTime,
+      deckState,
       equalizer,
       isFullPlayerOpen,
       isPlaying,
+      mixer,
       nextTrack,
       openFullPlayer: () => setIsFullPlayerOpen(true),
       playbackError,
@@ -1076,11 +1211,15 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       playbackQueue,
       playTrack,
       previousTrack,
+      setCuePoint,
+      setDeckState,
       setEqualizer,
+      setMixer,
       setVolume,
       seekTo,
       selectedTrack,
       syncLibrarySongs,
+      toggleLoop,
       togglePlayback,
       unavailableSongIds,
       volume,
@@ -1089,9 +1228,11 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       canGoNext,
       canGoPrevious,
       currentTime,
+      deckState,
       equalizer,
       isFullPlayerOpen,
       isPlaying,
+      mixer,
       nextTrack,
       playbackError,
       playbackContext,
@@ -1099,11 +1240,15 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       playbackQueue,
       playTrack,
       previousTrack,
+      setCuePoint,
+      setDeckState,
       setEqualizer,
+      setMixer,
       setVolume,
       seekTo,
       selectedTrack,
       syncLibrarySongs,
+      toggleLoop,
       togglePlayback,
       unavailableSongIds,
       volume,

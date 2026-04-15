@@ -73,6 +73,7 @@ export function LibraryView({
   const [savingSongId, setSavingSongId] = useState<Song['id'] | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const presentationState: SongPresentationState = useMemo(
     () => ({
@@ -131,6 +132,18 @@ export function LibraryView({
   useEffect(() => {
     void loadSongs();
   }, [searchTerm]);
+
+  useEffect(() => {
+    const handleFocusSearch = () => {
+      searchInputRef.current?.focus();
+    };
+
+    window.addEventListener('discora:focus-library-search', handleFocusSearch as EventListener);
+
+    return () => {
+      window.removeEventListener('discora:focus-library-search', handleFocusSearch as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     const songsToResolve = songs.filter((song) => song.audioUrl && needsDurationResolution(song));
@@ -398,6 +411,7 @@ export function LibraryView({
           <label className="library-search library-search-wide">
             <span>Buscar en la biblioteca</span>
             <input
+              ref={searchInputRef}
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}

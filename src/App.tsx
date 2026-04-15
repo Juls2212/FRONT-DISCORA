@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FullPlayer } from './components/FullPlayer';
+import { HomeDjController } from './components/HomeDjController';
 import { LibraryView } from './components/LibraryView';
-import { MainContent } from './components/MainContent';
 import { MiniPlayer } from './components/MiniPlayer';
 import { PlaylistsView } from './components/PlaylistsView';
 import { Sidebar } from './components/Sidebar';
@@ -72,21 +72,28 @@ function App() {
     canGoPrevious,
     closeFullPlayer,
     currentTime,
+    deckState,
     equalizer,
     isFullPlayerOpen,
     isPlaying,
+    mixer,
     nextTrack,
     openFullPlayer,
     playbackError,
     playbackContext,
     playbackDuration,
+    playbackQueue,
     playTrack,
     previousTrack,
+    setCuePoint,
+    setDeckState,
     setEqualizer,
+    setMixer,
     setVolume,
     seekTo,
     selectedTrack,
     syncLibrarySongs,
+    toggleLoop,
     togglePlayback,
     unavailableSongIds,
     volume,
@@ -327,6 +334,13 @@ function App() {
     setActiveView('playlists');
   };
 
+  const handleOpenLibrarySearch = () => {
+    setActiveView('library');
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('discora:focus-library-search'));
+    }, 0);
+  };
+
   const handleRemoveYouTubeSong = (songId: Song['id']) => {
     setYoutubeSongs((currentSongs) => currentSongs.filter((song) => song.id !== songId));
     setYoutubePlaylists((currentPlaylists) =>
@@ -492,40 +506,45 @@ function App() {
               unavailableSongIds={unavailableSongIds}
             />
           ) : (
-            <MainContent
+            <HomeDjController
               canGoNext={canGoNext}
               canGoPrevious={canGoPrevious}
               currentTime={currentTime}
-              equalizer={equalizer}
+              deckState={deckState}
               isPlaying={isPlaying}
+              mixer={mixer}
               onNext={nextTrack}
-              onPlayTrack={playTrack}
-              onEqualizerChange={setEqualizer}
+              onOpenLibrarySearch={handleOpenLibrarySearch}
+              onMixerChange={setMixer}
               onPrevious={previousTrack}
+              onSetCuePoint={setCuePoint}
+              onSetDeckState={setDeckState}
               onSeek={seekTo}
               onTogglePlayback={togglePlayback}
+              onToggleLoop={toggleLoop}
               onVolumeChange={setVolume}
               playbackContext={playbackContext}
               playbackDuration={playbackDuration}
-              playlistsCount={playlists.length}
+              playbackQueue={playbackQueue}
               selectedTrack={displayedSelectedTrack}
-              songs={displayedSongs}
               volume={volume}
             />
           )}
         </div>
       </div>
-      <MiniPlayer
-        currentTime={currentTime}
-        isPlaying={isPlaying}
-        onOpenFullPlayer={openFullPlayer}
-        onSeek={seekTo}
-        onTogglePlayback={togglePlayback}
-        playbackError={playbackError}
-        playbackContext={playbackContext}
-        playbackDuration={playbackDuration}
-        selectedTrack={displayedSelectedTrack}
-      />
+      {activeView !== 'home' ? (
+        <MiniPlayer
+          currentTime={currentTime}
+          isPlaying={isPlaying}
+          onOpenFullPlayer={openFullPlayer}
+          onSeek={seekTo}
+          onTogglePlayback={togglePlayback}
+          playbackError={playbackError}
+          playbackContext={playbackContext}
+          playbackDuration={playbackDuration}
+          selectedTrack={displayedSelectedTrack}
+        />
+      ) : null}
       <FullPlayer
         canGoNext={canGoNext}
         canGoPrevious={canGoPrevious}

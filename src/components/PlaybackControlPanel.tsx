@@ -38,7 +38,7 @@ export function PlaybackControlPanel({
   return (
     <section className="home-control-panel home-transport-panel">
       <div className="home-song-copy">
-        <p className="eyebrow">Ahora suena</p>
+        <p className="eyebrow">Canal activo</p>
         <h1>{song.title}</h1>
         <p className="home-song-artist">{song.artist}</p>
         <span className="home-source-badge">{sourceLabel}</span>
