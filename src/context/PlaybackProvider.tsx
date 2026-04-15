@@ -121,6 +121,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
   const youtubePlayerReadyPromiseRef = useRef<Promise<void> | null>(null);
   const youtubeStatusIntervalRef = useRef<number | null>(null);
   const youtubeAutoplayRetryTimeoutRef = useRef<number | null>(null);
+  const isPreparingYouTubeRef = useRef(false);
   const activeSourceTypeRef = useRef<Song['sourceType']>('backend');
   const currentYouTubeVideoIdRef = useRef<string | null>(null);
   const currentSourceKeyRef = useRef<string | null>(null);
@@ -267,6 +268,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
     if (!song) {
       setPlaybackError(uiMessage);
       setIsPlaying(false);
+      isPreparingYouTubeRef.current = false;
       return;
     }
 
@@ -281,6 +283,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       setPlaybackError(uiMessage);
       setIsPlaying(false);
     }
+    isPreparingYouTubeRef.current = false;
   }, [markSongUnavailable, trySkipUnavailableYouTubeSong]);
 
   const clearYouTubeStatusInterval = useCallback(() => {
@@ -748,15 +751,17 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       return;
     }
 
-    if (!selectedTrack) {
-      audio.pause();
-      clearYouTubeAutoplayRetry();
-      clearYouTubeStatusInterval();
-      youtubePlayerRef.current?.stopVideo();
-      pendingYouTubeAutoplayRef.current = false;
-      autoplayRequestedRef.current = false;
-      audio.removeAttribute('src');
-      audio.load();
+      if (!selectedTrack) {
+        audio.pause();
+        clearYouTubeAutoplayRetry();
+        clearYouTubeStatusInterval();
+        youtubePlayerRef.current?.stopVideo();
+        isPreparingYouTubeRef.current = false;
+        pendingYouTubeAutoplayRef.current = false;
+        autoplayRequestedRef.current = false;
+        currentSourceKeyRef.current = null;
+        audio.removeAttribute('src');
+        audio.load();
       setPlaybackError(null);
       setIsPlaying(false);
       setCurrentTime(0);
@@ -791,7 +796,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
         setPlaybackError(null);
 
         activeSourceTypeRef.current = 'youtube';
-        currentSourceKeyRef.current = `youtube:${youtubeVideoId}`;
+        isPreparingYouTubeRef.current = true;
         audio.pause();
         const youtubePlayer = await ensureYouTubePlayer();
 
@@ -816,6 +821,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
             selectedSongId: selectedTrack.id,
             videoId: youtubeVideoId,
           });
+          currentSourceKeyRef.current = `youtube:${youtubeVideoId}`;
           youtubePlayer.loadVideoById(youtubeVideoId, 0);
           clearYouTubeAutoplayRetry();
           youtubeAutoplayRetryTimeoutRef.current = window.setTimeout(() => {
@@ -832,8 +838,11 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
             }
           }, 350);
         } else {
+          currentSourceKeyRef.current = `youtube:${youtubeVideoId}`;
           youtubePlayer.cueVideoById(youtubeVideoId, 0);
         }
+
+        isPreparingYouTubeRef.current = false;
 
         return;
       }
@@ -854,6 +863,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       }
 
       activeSourceTypeRef.current = 'backend';
+      isPreparingYouTubeRef.current = false;
       clearYouTubeStatusInterval();
       youtubePlayerRef.current?.pauseVideo();
       currentYouTubeVideoIdRef.current = null;
@@ -891,6 +901,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
     }
 
     void preparePlaybackSource().catch((error) => {
+      isPreparingYouTubeRef.current = false;
       console.error('Discora playback preparation failed', {
         error,
         selectedTrack,
@@ -916,8 +927,20 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       const youtubeVideoId = getYouTubeVideoId(selectedTrack);
 
       if (!youtubePlayer || !youtubeVideoId) {
+        if (isPreparingYouTubeRef.current) {
+          console.debug('Discora YouTube playback waiting for player readiness', {
+            selectedSongId: selectedTrack.id,
+            sourceType: selectedTrack.sourceType,
+            videoId: youtubeVideoId,
+            hasPlayer: Boolean(youtubePlayer),
+            requestedPlayback: isPlaying,
+          });
+          return;
+        }
+
         console.error('Discora YouTube playback toggle failed', {
           selectedSongId: selectedTrack.id,
+          sourceType: selectedTrack.sourceType,
           videoId: youtubeVideoId,
           hasPlayer: Boolean(youtubePlayer),
           isPlaying,
@@ -932,6 +955,7 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
 
       console.debug('Discora YouTube playback command', {
         selectedSongId: selectedTrack.id,
+        sourceType: selectedTrack.sourceType,
         videoId: youtubeVideoId,
         isPlaying,
       });
@@ -984,8 +1008,20 @@ export function PlaybackProvider({ children }: PropsWithChildren) {
       const youtubePlayer = youtubePlayerRef.current;
 
       if (!youtubePlayer || !youtubeVideoId) {
+        if (isPreparingYouTubeRef.current) {
+          autoplayRequestedRef.current = true;
+          console.debug('Discora YouTube toggle deferred during player preparation', {
+            selectedSongId: selectedTrack.id,
+            sourceType: selectedTrack.sourceType,
+            videoId: youtubeVideoId,
+            hasPlayer: Boolean(youtubePlayer),
+          });
+          return;
+        }
+
         console.error('Discora YouTube playback resume failed', {
           selectedSongId: selectedTrack.id,
+          sourceType: selectedTrack.sourceType,
           videoId: youtubeVideoId,
           reason: youtubePlayer ? 'missing-video-id' : 'youtube-player-unavailable',
         });

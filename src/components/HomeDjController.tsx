@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
-import { DeckState, MixerState, PlaybackContext, Song } from '../types';
+import { DeckState, EqualizerState, MixerState, PlaybackContext, Song } from '../types';
 import { formatPlaybackTime, getArtworkBackground } from '../utils/playerPresentation';
-import { RotaryKnob } from './RotaryKnob';
 
 type HomeDjControllerProps = {
   canGoNext: boolean;
   canGoPrevious: boolean;
   currentTime: number;
   deckState: DeckState;
+  equalizer: EqualizerState;
   isPlaying: boolean;
   mixer: MixerState;
+  onEqualizerChange: (equalizer: EqualizerState) => void;
   onNext: () => void;
   onOpenLibrarySearch: () => void;
   onPrevious: () => void;
@@ -27,15 +28,15 @@ type HomeDjControllerProps = {
   volume: number;
 };
 
-const visiblePads = ['IN', 'OUT', 'EXIT', 'SYNC'];
-
 export function HomeDjController({
   canGoNext,
   canGoPrevious,
   currentTime,
   deckState,
+  equalizer,
   isPlaying,
   mixer,
+  onEqualizerChange,
   onNext,
   onOpenLibrarySearch,
   onPrevious,
@@ -64,6 +65,14 @@ export function HomeDjController({
       }),
     [currentTime, isPlaying],
   );
+  const mixerLights = useMemo(
+    () =>
+      Array.from({ length: 10 }, (_, index) => {
+        const pulse = isPlaying ? ((Math.sin(currentTime * 4.2 + index * 0.75) + 1) / 2) * 100 : 10 + index * 4;
+        return Math.min(100, pulse);
+      }),
+    [currentTime, isPlaying],
+  );
 
   if (!selectedTrack) {
     return (
@@ -89,6 +98,8 @@ export function HomeDjController({
   const deckBackground = getArtworkBackground(selectedTrack.cover);
   const deckAWeight = Math.max(0, 1 - mixer.crossfader / 100);
   const deckBWeight = Math.max(0, mixer.crossfader / 100);
+  const playbackStateLabel = isPlaying ? 'En reproduccion' : 'En pausa';
+  const collectionLabel = selectedTrack.album?.trim() || 'Sin coleccion visible';
 
   const handleLoadDeck = () => {
     onSeek(deckState.cuePoint ?? 0);
@@ -96,39 +107,6 @@ export function HomeDjController({
 
   const handleCue = () => {
     onSeek(deckState.cuePoint ?? 0);
-  };
-
-  const handleLoopIn = () => {
-    onSetDeckState({
-      ...deckState,
-      loopInPoint: currentTime,
-      loopEnabled: false,
-    });
-  };
-
-  const handleLoopOut = () => {
-    const nextOut = playbackDuration > 0 ? Math.min(currentTime, playbackDuration) : currentTime;
-    onSetDeckState({
-      ...deckState,
-      loopOutPoint: nextOut,
-      loopEnabled: deckState.loopInPoint !== null && nextOut > deckState.loopInPoint,
-    });
-  };
-
-  const handleExitLoop = () => {
-    onSetDeckState({
-      ...deckState,
-      loopEnabled: false,
-      loopInPoint: null,
-      loopOutPoint: null,
-    });
-  };
-
-  const handleSync = () => {
-    onMixerChange({
-      ...mixer,
-      filter: 50,
-    });
   };
 
   return (
@@ -218,54 +196,35 @@ export function HomeDjController({
               </div>
             </div>
 
-            <div className="dj-home-pad-strip">
-              {visiblePads.map((pad) => (
-                <button
-                  key={pad}
-                  type="button"
-                  className="dj-home-pad dj-home-pad-simple"
-                  onClick={() => {
-                    if (pad === 'IN') {
-                      handleLoopIn();
-                      return;
-                    }
-
-                    if (pad === 'OUT') {
-                      handleLoopOut();
-                      return;
-                    }
-
-                    if (pad === 'EXIT') {
-                      handleExitLoop();
-                      return;
-                    }
-
-                    handleSync();
-                  }}
-                >
-                  <span>{pad}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="dj-home-toggle-row">
-              <button
-                type="button"
-                className={`dj-home-pill-button${deckState.vinylMode ? ' dj-home-pill-button-active' : ''}`}
-                onClick={() => onSetDeckState({ ...deckState, vinylMode: !deckState.vinylMode })}
-              >
-                Vinyl
-              </button>
-              <button
-                type="button"
-                className={`dj-home-pill-button${deckState.slipMode ? ' dj-home-pill-button-active' : ''}`}
-                onClick={() => onSetDeckState({ ...deckState, slipMode: !deckState.slipMode })}
-              >
-                Slip
-              </button>
-              <button type="button" className="dj-home-pill-button" onClick={() => onSetCuePoint()}>
-                Hot
-              </button>
+            <div className="dj-home-status-panel">
+              <div className="dj-home-status-art" style={{ background: deckBackground }} aria-hidden="true">
+                <div className="dj-home-status-art-glow" />
+              </div>
+              <div className="dj-home-status-copy">
+                <div className="dj-home-status-grid">
+                  <article>
+                    <span>Fuente</span>
+                    <strong>{sourceLabel}</strong>
+                  </article>
+                  <article>
+                    <span>Estado</span>
+                    <strong>{playbackStateLabel}</strong>
+                  </article>
+                  <article>
+                    <span>Artista</span>
+                    <strong>{selectedTrack.artist}</strong>
+                  </article>
+                  <article>
+                    <span>Coleccion</span>
+                    <strong>{collectionLabel}</strong>
+                  </article>
+                </div>
+                <div className="dj-home-status-tags">
+                  <span>{selectedTrack.sourceType === 'youtube' ? 'YouTube' : 'Discora'}</span>
+                  <span>{deckState.loopEnabled ? 'Loop activo' : 'Loop libre'}</span>
+                  <span>{deckState.vinylMode ? 'Modo vinilo' : 'Modo digital'}</span>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -277,30 +236,104 @@ export function HomeDjController({
               </div>
             </div>
 
-            <div className="dj-home-master-strip">
-              <label className="dj-home-mixer-strip dj-home-mixer-strip-master">
-                <span>Master</span>
-                <input
-                  className="dj-home-mixer-slider"
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={Math.round(volume * 100)}
-                  onChange={(event) => onVolumeChange(Number(event.target.value) / 100)}
-                  aria-label="Volumen"
-                />
-                <strong>{Math.round(volume * 100)}</strong>
-              </label>
-            </div>
+            <div className="dj-home-mixer-cluster">
+              <div className="dj-home-mixer-lights" aria-hidden="true">
+                {mixerLights.map((level, index) => (
+                  <span
+                    key={`left-${index}`}
+                    className={`dj-home-led${level > 48 ? ' dj-home-led-active' : ''}${level > 76 ? ' dj-home-led-hot' : ''}`}
+                    style={{ opacity: `${Math.max(0.22, level / 100)}` }}
+                  />
+                ))}
+              </div>
 
-            <div className="dj-home-mixer-knobs dj-home-mixer-knobs-simple">
-              <RotaryKnob
-                ariaLabel="Filtro"
-                label="Filtro"
-                value={mixer.filter}
-                onChange={(filter) => onMixerChange({ ...mixer, filter })}
-              />
+              <div className="dj-home-mixer-core">
+                <div className="dj-home-mixer-sliders dj-home-mixer-sliders-restored">
+                  <label className="dj-home-mixer-strip">
+                    <span>Master</span>
+                    <input
+                      className="dj-home-mixer-slider"
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round(volume * 100)}
+                      onChange={(event) => onVolumeChange(Number(event.target.value) / 100)}
+                      aria-label="Volumen master"
+                    />
+                    <strong>{Math.round(volume * 100)}</strong>
+                  </label>
+                  <label className="dj-home-mixer-strip">
+                    <span>Bass</span>
+                    <input
+                      className="dj-home-mixer-slider"
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={equalizer.bass}
+                      onChange={(event) => onEqualizerChange({ ...equalizer, bass: Number(event.target.value) })}
+                      aria-label="Graves"
+                    />
+                    <strong>{equalizer.bass}</strong>
+                  </label>
+                  <label className="dj-home-mixer-strip">
+                    <span>Mid</span>
+                    <input
+                      className="dj-home-mixer-slider"
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={equalizer.mid}
+                      onChange={(event) => onEqualizerChange({ ...equalizer, mid: Number(event.target.value) })}
+                      aria-label="Medios"
+                    />
+                    <strong>{equalizer.mid}</strong>
+                  </label>
+                  <label className="dj-home-mixer-strip">
+                    <span>Treble</span>
+                    <input
+                      className="dj-home-mixer-slider"
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={equalizer.treble}
+                      onChange={(event) => onEqualizerChange({ ...equalizer, treble: Number(event.target.value) })}
+                      aria-label="Agudos"
+                    />
+                    <strong>{equalizer.treble}</strong>
+                  </label>
+                </div>
+
+                <div className="dj-home-mixer-volume-panel">
+                  <div className="dj-home-volume-head">
+                    <span>Volumen</span>
+                    <strong>{Math.round(volume * 100)}%</strong>
+                  </div>
+                  <input
+                    className="dj-home-volume-slider"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(volume * 100)}
+                    onChange={(event) => onVolumeChange(Number(event.target.value) / 100)}
+                    aria-label="Volumen general"
+                  />
+                </div>
+              </div>
+
+              <div className="dj-home-mixer-lights" aria-hidden="true">
+                {[...mixerLights].reverse().map((level, index) => (
+                  <span
+                    key={`right-${index}`}
+                    className={`dj-home-led${level > 48 ? ' dj-home-led-active' : ''}${level > 76 ? ' dj-home-led-hot' : ''}`}
+                    style={{ opacity: `${Math.max(0.22, level / 100)}` }}
+                  />
+                ))}
+              </div>
             </div>
 
             <div className="dj-home-crossfader">
@@ -318,6 +351,23 @@ export function HomeDjController({
                 value={mixer.crossfader}
                 onChange={(event) => onMixerChange({ ...mixer, crossfader: Number(event.target.value) })}
                 aria-label="Crossfader"
+              />
+            </div>
+
+            <div className="dj-home-filter-panel">
+              <div className="dj-home-volume-head">
+                <span>Filtro</span>
+                <strong>{mixer.filter}</strong>
+              </div>
+              <input
+                className="dj-home-volume-slider"
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={mixer.filter}
+                onChange={(event) => onMixerChange({ ...mixer, filter: Number(event.target.value) })}
+                aria-label="Filtro"
               />
             </div>
 

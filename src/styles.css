@@ -25,6 +25,9 @@
   --border-strong: rgba(181, 194, 223, 0.18);
   --text-muted: #9ca7bf;
   --text-soft: #7f8aa3;
+  --light-text-primary: #1a1a1a;
+  --light-text-secondary: #5f6870;
+  --light-text-muted: #707983;
   --shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
   --surface-glow-a: rgba(159, 172, 199, 0.06);
   --surface-glow-b: rgba(148, 131, 139, 0.08);
@@ -70,8 +73,8 @@
   --panel-soft: rgba(17, 24, 39, 0.03);
   --border: rgba(42, 59, 71, 0.08);
   --border-strong: rgba(42, 59, 71, 0.14);
-  --text-muted: #697477;
-  --text-soft: #a0a7ac;
+  --text-muted: var(--light-text-secondary);
+  --text-soft: var(--light-text-muted);
   --shadow: 0 10px 26px rgba(42, 59, 71, 0.06);
   --surface-glow-a: rgba(16, 131, 214, 0.08);
   --surface-glow-b: rgba(160, 167, 172, 0.08);
@@ -3165,6 +3168,86 @@ button {
   white-space: nowrap;
 }
 
+.dj-home-status-panel {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0.008));
+}
+
+.dj-home-status-art {
+  position: relative;
+  min-height: 104px;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.dj-home-status-art-glow {
+  position: absolute;
+  inset: auto -12px -18px auto;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 68%);
+  filter: blur(10px);
+}
+
+.dj-home-status-copy,
+.dj-home-status-grid {
+  display: grid;
+}
+
+.dj-home-status-copy {
+  gap: 10px;
+  min-width: 0;
+}
+
+.dj-home-status-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.dj-home-status-grid article {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dj-home-status-grid span,
+.dj-home-status-tags span {
+  color: var(--text-soft);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dj-home-status-grid strong {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dj-home-status-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dj-home-status-tags span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .dj-home-transport-compact {
   gap: 8px;
 }
@@ -3200,13 +3283,81 @@ button {
   justify-content: center;
 }
 
-.dj-home-master-strip {
+.dj-home-mixer-cluster {
   display: grid;
-  justify-items: center;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  gap: 10px;
+  align-items: stretch;
 }
 
-.dj-home-mixer-knobs-simple {
-  padding-top: 4px;
+.dj-home-mixer-core {
+  display: grid;
+  gap: 12px;
+}
+
+.dj-home-mixer-sliders-restored {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dj-home-mixer-lights {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  align-content: center;
+}
+
+.dj-home-led {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(123, 137, 164, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.04);
+}
+
+.dj-home-led-active {
+  background: rgba(118, 203, 255, 0.72);
+  box-shadow: 0 0 10px rgba(118, 203, 255, 0.18);
+}
+
+.dj-home-led-hot {
+  background: rgba(255, 213, 128, 0.86);
+  box-shadow: 0 0 12px rgba(255, 200, 107, 0.22);
+}
+
+.dj-home-volume-panel,
+.dj-home-filter-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0.01));
+}
+
+.dj-home-volume-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dj-home-volume-head span {
+  color: var(--text-soft);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dj-home-volume-head strong {
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+}
+
+.dj-home-volume-slider {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 .dj-home-queue-panel-simple {
@@ -3764,11 +3915,34 @@ button {
 :root[data-theme='light'] .dj-home-pill-button,
 :root[data-theme='light'] .dj-home-square-button,
 :root[data-theme='light'] .dj-home-pad,
+:root[data-theme='light'] .dj-home-status-panel,
 :root[data-theme='light'] .dj-home-mixer-strip,
+:root[data-theme='light'] .dj-home-volume-panel,
+:root[data-theme='light'] .dj-home-filter-panel,
 :root[data-theme='light'] .dj-home-mixer-meter,
 :root[data-theme='light'] .dj-home-queue-row-next {
   background: linear-gradient(180deg, rgba(196, 202, 207, 0.96), rgba(186, 193, 199, 0.96));
   border-color: rgba(42, 59, 71, 0.08);
+}
+
+:root[data-theme='light'] .dj-home-status-art,
+:root[data-theme='light'] .dj-home-status-tags span {
+  border-color: rgba(42, 59, 71, 0.08);
+}
+
+:root[data-theme='light'] .dj-home-led {
+  background: rgba(82, 99, 118, 0.18);
+  border-color: rgba(42, 59, 71, 0.08);
+}
+
+:root[data-theme='light'] .dj-home-led-active {
+  background: rgba(16, 131, 214, 0.62);
+  box-shadow: 0 0 10px rgba(16, 131, 214, 0.14);
+}
+
+:root[data-theme='light'] .dj-home-led-hot {
+  background: rgba(228, 171, 88, 0.72);
+  box-shadow: 0 0 10px rgba(228, 171, 88, 0.14);
 }
 
 :root[data-theme='light'] .dj-home-mini-display {
@@ -3970,8 +4144,16 @@ button {
 :root[data-theme='light'] .mini-player-track h3,
 :root[data-theme='light'] .library-song-meta h3,
 :root[data-theme='light'] .playlist-detail-meta h3,
-:root[data-theme='light'] .full-player-info h2 {
-  color: #2a3b47;
+:root[data-theme='light'] .full-player-info h2,
+:root[data-theme='light'] .nav-button,
+:root[data-theme='light'] .collection-button,
+:root[data-theme='light'] .theme-toggle,
+:root[data-theme='light'] .dj-home-track-card h2,
+:root[data-theme='light'] .dj-home-status-grid strong,
+:root[data-theme='light'] .dj-home-queue-copy strong,
+:root[data-theme='light'] .dj-home-volume-head strong,
+:root[data-theme='light'] .dj-home-mixer-strip strong {
+  color: var(--light-text-primary);
 }
 
 :root[data-theme='light'] .hero-copy,
@@ -3987,8 +4169,12 @@ button {
 :root[data-theme='light'] .mini-player-meta p,
 :root[data-theme='light'] .playlist-feedback,
 :root[data-theme='light'] .sidebar-feedback,
-:root[data-theme='light'] .state-message p {
-  color: #697477;
+:root[data-theme='light'] .state-message p,
+:root[data-theme='light'] .brand-copy,
+:root[data-theme='light'] .dj-home-track-card p,
+:root[data-theme='light'] .dj-home-queue-copy p,
+:root[data-theme='light'] .dj-home-crossfader-head span {
+  color: var(--light-text-secondary);
 }
 
 :root[data-theme='light'] .sidebar-label,
@@ -3999,8 +4185,14 @@ button {
 :root[data-theme='light'] .playlist-detail-meta-line,
 :root[data-theme='light'] .library-import-label,
 :root[data-theme='light'] .full-player-kicker,
-:root[data-theme='light'] .playlist-drag-indicator {
-  color: #a0a7ac;
+:root[data-theme='light'] .playlist-drag-indicator,
+:root[data-theme='light'] .dj-home-track-card span,
+:root[data-theme='light'] .dj-home-status-grid span,
+:root[data-theme='light'] .dj-home-status-tags span,
+:root[data-theme='light'] .dj-home-volume-head span,
+:root[data-theme='light'] .dj-home-mixer-strip span,
+:root[data-theme='light'] .dj-home-queue-count {
+  color: var(--light-text-muted);
 }
 
 :root[data-theme='light'] .playlist-detail-row-dragging {

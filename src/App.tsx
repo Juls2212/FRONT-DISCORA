@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FullPlayer } from './components/FullPlayer';
 import { HomeDjController } from './components/HomeDjController';
+import { HomeRenderBoundary } from './components/HomeRenderBoundary';
+import { HomeSafeFallback } from './components/HomeSafeFallback';
 import { LibraryView } from './components/LibraryView';
 import { MiniPlayer } from './components/MiniPlayer';
 import { PlaylistsView } from './components/PlaylistsView';
@@ -166,6 +168,11 @@ function App() {
     () => (selectedTrack ? decorateSong(selectedTrack, presentationState) : null),
     [presentationState, selectedTrack],
   );
+  const resolvedActiveView: ViewName =
+    activeView === 'library' || activeView === 'playlists' || activeView === 'home' ? activeView : 'home';
+  const safePlaybackQueue = Array.isArray(playbackQueue) ? playbackQueue : [];
+  const safeDisplayedSongs = Array.isArray(displayedSongs) ? displayedSongs : [];
+  const safeMergedPlaylists = Array.isArray(mergedPlaylists) ? mergedPlaylists : [];
 
   useEffect(() => {
     window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favoriteSongIds));
@@ -462,16 +469,16 @@ function App() {
     <div className="app-shell">
       <div className="app-layout">
         <Sidebar
-          activeView={activeView}
-          playlists={mergedPlaylists}
-          playlistsError={mergedPlaylists.length > 0 ? null : playlistsError}
+          activeView={resolvedActiveView}
+          playlists={safeMergedPlaylists}
+          playlistsError={safeMergedPlaylists.length > 0 ? null : playlistsError}
           playlistsLoading={playlistsLoading && youtubePlaylists.length === 0}
           theme={theme}
           onSelectView={setActiveView}
           onToggleTheme={handleToggleTheme}
         />
         <div className="content-shell">
-          {activeView === 'library' ? (
+          {resolvedActiveView === 'library' ? (
             <LibraryView
               embeddedCoverBySongId={embeddedCoverBySongId}
               favoriteSongIds={favoriteSongIds}
@@ -487,17 +494,17 @@ function App() {
               unavailableSongIds={unavailableSongIds}
               youtubeSongs={youtubeSongs}
             />
-          ) : activeView === 'playlists' ? (
+          ) : resolvedActiveView === 'playlists' ? (
             <PlaylistsView
               embeddedCoverBySongId={embeddedCoverBySongId}
               favoriteSongIds={favoriteSongIds}
               manualCoverBySongId={manualCoverBySongId}
               onFrontendPlaylistDetailChange={handleFrontendPlaylistDetailChange}
-              playlists={mergedPlaylists}
-              playlistsError={mergedPlaylists.length > 0 ? null : playlistsError}
+              playlists={safeMergedPlaylists}
+              playlistsError={safeMergedPlaylists.length > 0 ? null : playlistsError}
               playlistsLoading={playlistsLoading && youtubePlaylists.length === 0}
               requestedPlaylistId={requestedPlaylistId}
-              songs={displayedSongs}
+              songs={safeDisplayedSongs}
               onPlayTrack={playTrack}
               onRefreshPlaylists={loadPlaylists}
               onResolveFrontendPlaylistDetail={handleResolveFrontendPlaylistDetail}
@@ -505,34 +512,40 @@ function App() {
               onToggleFavorite={handleToggleFavorite}
               unavailableSongIds={unavailableSongIds}
             />
+          ) : resolvedActiveView === 'home' ? (
+            <HomeRenderBoundary>
+              <HomeDjController
+                canGoNext={canGoNext}
+                canGoPrevious={canGoPrevious}
+                currentTime={Number.isFinite(currentTime) ? currentTime : 0}
+                deckState={deckState}
+                equalizer={equalizer}
+                isPlaying={isPlaying}
+                mixer={mixer}
+                onEqualizerChange={setEqualizer}
+                onNext={nextTrack}
+                onOpenLibrarySearch={handleOpenLibrarySearch}
+                onMixerChange={setMixer}
+                onPrevious={previousTrack}
+                onSetCuePoint={setCuePoint}
+                onSetDeckState={setDeckState}
+                onSeek={seekTo}
+                onTogglePlayback={togglePlayback}
+                onToggleLoop={toggleLoop}
+                onVolumeChange={setVolume}
+                playbackContext={playbackContext}
+                playbackDuration={Number.isFinite(playbackDuration) ? playbackDuration : 0}
+                playbackQueue={safePlaybackQueue}
+                selectedTrack={displayedSelectedTrack}
+                volume={Number.isFinite(volume) ? volume : 0.72}
+              />
+            </HomeRenderBoundary>
           ) : (
-            <HomeDjController
-              canGoNext={canGoNext}
-              canGoPrevious={canGoPrevious}
-              currentTime={currentTime}
-              deckState={deckState}
-              isPlaying={isPlaying}
-              mixer={mixer}
-              onNext={nextTrack}
-              onOpenLibrarySearch={handleOpenLibrarySearch}
-              onMixerChange={setMixer}
-              onPrevious={previousTrack}
-              onSetCuePoint={setCuePoint}
-              onSetDeckState={setDeckState}
-              onSeek={seekTo}
-              onTogglePlayback={togglePlayback}
-              onToggleLoop={toggleLoop}
-              onVolumeChange={setVolume}
-              playbackContext={playbackContext}
-              playbackDuration={playbackDuration}
-              playbackQueue={playbackQueue}
-              selectedTrack={displayedSelectedTrack}
-              volume={volume}
-            />
+            <HomeSafeFallback detail="Discora uso una vista segura porque la vista solicitada no estaba disponible." />
           )}
         </div>
       </div>
-      {activeView !== 'home' ? (
+      {resolvedActiveView !== 'home' ? (
         <MiniPlayer
           currentTime={currentTime}
           isPlaying={isPlaying}
